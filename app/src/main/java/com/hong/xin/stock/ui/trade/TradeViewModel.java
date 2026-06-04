@@ -95,7 +95,7 @@ public class TradeViewModel extends AndroidViewModel {
                 TradeUiState s = uiState.getValue();
                 if (s != null) {
                     TradeUiState.Builder b = s.copy();
-                    recalcDashboardFields(b, settingsManager.getCurrentPrice());
+                    recalcDashboardFields(b, settingsManager.getCurrentPrice(), 0);
                     uiState.setValue(b.build());
                 }
             }
@@ -112,12 +112,12 @@ public class TradeViewModel extends AndroidViewModel {
                 TradeUiState s = uiState.getValue();
                 if (s == null) return;
 
-                double initialHighest = s.getBuyPrice();
+                double initialHighest = 0;
                 boolean foundBuyDate = false;
                 for (KlineData k : klineList) {
                     if (!foundBuyDate) {
-                        foundBuyDate = k.getDate().equals(buyDate);
-                        if (!foundBuyDate) continue;
+                        if (k.getDate().compareTo(buyDate) < 0) continue;
+                        foundBuyDate = true;
                     }
                     if (k.getHigh() > initialHighest) {
                         initialHighest = k.getHigh();
@@ -128,14 +128,16 @@ public class TradeViewModel extends AndroidViewModel {
                 if (currentPrice > initialHighest) {
                     initialHighest = currentPrice;
                 }
+                if (initialHighest <= 0) {
+                    initialHighest = s.getBuyPrice();
+                }
 
-                engine = new TrailingStopEngine(s.getBuyPrice(), s.getTrailingPercent(),
-                        s.getStopLossPercent(), s.getTargetProfitPercent(), s.isUseGraded());
+                double restoreTrailing = s.getTrailingPercent() > 0 ? s.getTrailingPercent() : 3.0;
+                engine = new TrailingStopEngine(s.getBuyPrice(), restoreTrailing,
+                        s.getStopLossPercent(), s.getTargetProfitPercent(), s.isUseGraded(),
+                        initialHighest);
                 engine.setTargetAlerted(settingsManager.getTargetAlerted());
                 engine.setDrawdownCriticalAlerted(settingsManager.getDrawdownCriticalAlerted());
-                if (initialHighest > s.getBuyPrice()) {
-                    engine.updateHighestPrice(initialHighest);
-                }
 
                 TrailingStopEngine.ActionResult result = engine.updatePrice(currentPrice);
                 updateFromResult(result, currentPrice);
@@ -159,7 +161,13 @@ public class TradeViewModel extends AndroidViewModel {
         settingsManager.setUseGraded(v);
         TradeUiState state = uiState.getValue();
         if (state == null) return;
-        uiState.setValue(state.copy().useGraded(v).build());
+        TradeUiState.Builder builder = state.copy().useGraded(v);
+        if (!v) {
+            builder.trailingPercent(0);
+        } else if (state.getTrailingPercent() <= 0) {
+            builder.trailingPercent(3);
+        }
+        uiState.setValue(builder.build());
         if (engine != null && engine.isActive()) {
             engine.setUseGraded(v);
         }
@@ -186,7 +194,7 @@ public class TradeViewModel extends AndroidViewModel {
         final String stockName = state.getStockName();
         final double buyP = state.getBuyPrice();
         final String buyDateStr = state.getBuyDate();
-        final double trailing = state.getTrailingPercent() > 0 ? state.getTrailingPercent() : 5.0;
+        final double trailing = state.getTrailingPercent() > 0 ? state.getTrailingPercent() : 3.0;
         final double stopLoss = state.getStopLossPercent();
         final double targetProfit = state.getTargetProfitPercent();
         final boolean useGraded = state.isUseGraded();
@@ -196,12 +204,12 @@ public class TradeViewModel extends AndroidViewModel {
             EastMoneyApi.fetchKline(code, 365, new EastMoneyApi.Callback<List<KlineData>>() {
                 @Override
                 public void onResult(List<KlineData> klineList) {
-                    double initialHighest = buyP;
-                    boolean foundBuyDate = buyDateStr.isEmpty();
+                    double initialHighest = 0;
+                    boolean foundBuyDate = false;
                     for (KlineData k : klineList) {
                         if (!foundBuyDate) {
-                            foundBuyDate = k.getDate().equals(buyDateStr);
-                            if (!foundBuyDate) continue;
+                            if (k.getDate().compareTo(buyDateStr) < 0) continue;
+                            foundBuyDate = true;
                         }
                         if (k.getHigh() > initialHighest) {
                             initialHighest = k.getHigh();
@@ -209,6 +217,9 @@ public class TradeViewModel extends AndroidViewModel {
                     }
                     if (currentPrice > initialHighest) {
                         initialHighest = currentPrice;
+                    }
+                    if (initialHighest <= 0) {
+                        initialHighest = buyP;
                     }
                     initEngineAndStart(buyP, trailing, stopLoss, targetProfit, useGraded,
                             initialHighest, currentPrice, code, stockName);
@@ -224,10 +235,8 @@ public class TradeViewModel extends AndroidViewModel {
                                      double targetProfit, boolean useGraded,
                                      double initialHighest, double currentPrice,
                                      String code, String name) {
-        engine = new TrailingStopEngine(buyP, trailing, stopLoss, targetProfit, useGraded);
-        if (initialHighest > buyP) {
-            engine.updateHighestPrice(initialHighest);
-        }
+        engine = new TrailingStopEngine(buyP, trailing, stopLoss, targetProfit, useGraded,
+                initialHighest);
 
         settingsManager.setIsActive(true);
         settingsManager.setCurrentPrice(currentPrice);
@@ -254,7 +263,7 @@ public class TradeViewModel extends AndroidViewModel {
             savePriceRecord(currentPrice, result);
         } else {
             TradeUiState.Builder builder = state.copy().currentPrice(currentPrice);
-            recalcDashboardFields(builder, currentPrice);
+            recalcDashboardFields(builder, currentPrice, 0);
             uiState.setValue(builder.build());
         }
     }
@@ -273,7 +282,19 @@ public class TradeViewModel extends AndroidViewModel {
                     TradeUiState current = uiState.getValue();
                     if (current != null) {
                         networkPriceUpdate = true;
-                        uiState.setValue(current.copy().currentPrice(quote.getPrice()).build());
+                        TradeUiState.Builder builder = current.copy().currentPrice(quote.getPrice());
+                        if (engine != null && engine.isActive()) {
+                            if (quote.getHigh() > 0 && quote.getHigh() > engine.getCurrentState().highestPrice) {
+                                engine.updateHighestPrice(quote.getHigh());
+                            }
+                            if (quote.getPrice() > engine.getCurrentState().highestPrice) {
+                                engine.updateHighestPrice(quote.getPrice());
+                            }
+                            TrailingStopEngine.TrailingStopState st = engine.getCurrentState();
+                            builder.highestPrice(st.highestPrice)
+                                   .defenseLine(st.defenseLine);
+                        }
+                        uiState.setValue(builder.build());
                     }
                     toastMessage.setValue("实时价: " + String.format("%.2f", quote.getPrice()));
                 } else if (quote.getName() != null && !quote.getName().isEmpty()) {
@@ -322,7 +343,7 @@ public class TradeViewModel extends AndroidViewModel {
                 .isGradedEffect(engineState.isGradedEffect)
                 .lastMessage(result.message);
 
-        recalcDashboardFields(builder, currentPrice);
+            recalcDashboardFields(builder, currentPrice, engineState.highestPrice);
         uiState.setValue(builder.build());
 
         settingsManager.setDefenseLine(engineState.defenseLine);
@@ -370,7 +391,7 @@ public class TradeViewModel extends AndroidViewModel {
         TradeRepository.appendLog(getApplication().getCacheDir(), result.message);
     }
 
-    private void recalcDashboardFields(TradeUiState.Builder builder, double currentPrice) {
+    private void recalcDashboardFields(TradeUiState.Builder builder, double currentPrice, double highestPriceOverride) {
         TradeUiState state = uiState.getValue();
         if (state == null) return;
 
@@ -380,7 +401,7 @@ public class TradeViewModel extends AndroidViewModel {
             builder.profitPct(profit);
         }
 
-        double highest = state.getHighestPrice();
+        double highest = highestPriceOverride > 0 ? highestPriceOverride : state.getHighestPrice();
         if (highest > 0 && currentPrice > 0) {
             double dd = (highest - currentPrice) / highest * 100.0;
             builder.drawdown(dd);
@@ -438,6 +459,7 @@ public class TradeViewModel extends AndroidViewModel {
                 .build());
         engine = null;
         settingsManager.clearDashboard();
+        settingsManager.setCurrentPrice(0);
         settingsManager.setLastStockName(name);
         settingsManager.setLastStockCode(code);
     }

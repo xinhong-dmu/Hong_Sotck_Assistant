@@ -43,7 +43,6 @@ public class TradeFragment extends Fragment {
     private EditText stockName, stockCode, buyPrice, buyDate, stopLossPercent, targetProfitPercent;
     private EditText trailingPercent, currentPrice;
     private CheckBox useGraded;
-    private CheckBox etfFilterCheck;
     private Button updatePriceBtn, confirmPriceBtn, clearTradeBtn, savePresetBtn, aiAnalysisBtn;
     private View dashboardCard;
     private TextView dashboardHighest, dashboardDefense, dashboardHardStop, dashboardProfit;
@@ -75,6 +74,12 @@ public class TradeFragment extends Fragment {
         observeViewModel();
     }
 
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        saveInputParams();
+    }
+
     private void initViews(View view) {
         searchEdit = view.findViewById(R.id.search_edit);
         stockName = view.findViewById(R.id.stock_name);
@@ -85,7 +90,6 @@ public class TradeFragment extends Fragment {
         targetProfitPercent = view.findViewById(R.id.target_profit_percent);
         trailingPercent = view.findViewById(R.id.trailing_percent);
         useGraded = view.findViewById(R.id.use_graded);
-        etfFilterCheck = view.findViewById(R.id.etf_filter_check);
         currentPrice = view.findViewById(R.id.current_price);
         updatePriceBtn = view.findViewById(R.id.update_price_btn);
         confirmPriceBtn = view.findViewById(R.id.confirm_price_btn);
@@ -118,11 +122,6 @@ public class TradeFragment extends Fragment {
             searchEdit.setText("");
         });
 
-        etfFilterCheck.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            String typeFilter = isChecked ? Stock.TYPE_ETF : null;
-            searchAdapter.setTypeFilter(typeFilter);
-            searchEdit.setAdapter(searchAdapter);
-        });
     }
 
     private void setupListeners() {
@@ -132,6 +131,9 @@ public class TradeFragment extends Fragment {
             trailingPercent.setEnabled(isChecked);
             if (!isChecked) {
                 trailingPercent.setText("0");
+                trailingPercent.setTextColor(0xFFAAAAAA);
+            } else {
+                trailingPercent.setTextColor(0xFF000000);
             }
             viewModel.updateUseGraded(isChecked);
         });
@@ -249,13 +251,14 @@ public class TradeFragment extends Fragment {
                 stockName.setText(state.getStockName());
                 stockCode.setText(state.getStockCode());
                 updatingFromObserver = false;
-                if (state.getBuyPrice() > 0) buyPrice.setText(String.valueOf(state.getBuyPrice()));
+                if (state.getBuyPrice() > 0) buyPrice.setText(String.format("%.2f", state.getBuyPrice()));
                 buyDate.setText(state.getBuyDate());
                 stopLossPercent.setText(String.valueOf((int) state.getStopLossPercent()));
                 targetProfitPercent.setText(String.valueOf((int) state.getTargetProfitPercent()));
                 trailingPercent.setText(String.valueOf((int) state.getTrailingPercent()));
                 useGraded.setChecked(state.isUseGraded());
                 trailingPercent.setEnabled(state.isUseGraded());
+                trailingPercent.setTextColor(state.isUseGraded() ? 0xFF000000 : 0xFFAAAAAA);
             }
             if (state.getCurrentPrice() > 0) currentPrice.setText(String.format("%.2f", state.getCurrentPrice()));
 
@@ -283,6 +286,7 @@ public class TradeFragment extends Fragment {
             dashboardDefense.setVisibility(View.VISIBLE);
             dashboardDistance.setVisibility(View.VISIBLE);
             dashboardTrailingNote.setVisibility(View.VISIBLE);
+            dashboardDrawdown.setVisibility(View.VISIBLE);
             dashboardDefense.setText("🛡 当前防守线: " + String.format("%.2f", state.getDefenseLine()));
             double dist = state.getDistanceToDefense();
             String distStr = String.format("📊 距防守线空间: %.2f%%", dist);
@@ -301,6 +305,7 @@ public class TradeFragment extends Fragment {
             dashboardDefense.setVisibility(View.GONE);
             dashboardDistance.setVisibility(View.GONE);
             dashboardTrailingNote.setVisibility(View.GONE);
+            dashboardDrawdown.setVisibility(View.GONE);
         }
 
         double profit = state.getProfitPct();
@@ -360,6 +365,9 @@ public class TradeFragment extends Fragment {
         double trailing = 0;
         try { trailing = Double.parseDouble(trailingPercent.getText().toString().trim()); } catch (NumberFormatException ignored) {}
         boolean graded = useGraded.isChecked();
+        double curP = 0;
+        try { curP = Double.parseDouble(currentPrice.getText().toString().trim()); } catch (NumberFormatException ignored) {}
+        if (curP > 0) settingsManager.setCurrentPrice(curP);
 
         viewModel.saveTradeParams(name, code, buyP, date, stopLoss, targetProfit, trailing, graded);
     }

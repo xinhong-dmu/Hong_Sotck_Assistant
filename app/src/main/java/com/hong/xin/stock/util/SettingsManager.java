@@ -128,7 +128,6 @@ public class SettingsManager {
                 .putFloat(KEY_TARGET_PROFIT, (float) targetProfit)
                 .putFloat(KEY_TRAILING, (float) trailing)
                 .putBoolean(KEY_USE_GRADED, useGraded)
-                .putBoolean(KEY_IS_ACTIVE, true)
                 .apply();
     }
 

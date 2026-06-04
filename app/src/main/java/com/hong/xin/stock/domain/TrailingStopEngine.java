@@ -61,17 +61,27 @@ public class TrailingStopEngine {
     private boolean drawdownCriticalAlerted = false;
 
     public TrailingStopEngine(double buyPrice, double baseTrailingPercent, double stopLossPercent,
-                              double targetProfitPercent, boolean useGraded) {
+                               double targetProfitPercent, boolean useGraded) {
+        this(buyPrice, baseTrailingPercent, stopLossPercent, targetProfitPercent, useGraded, 0);
+    }
+
+    public TrailingStopEngine(double buyPrice, double baseTrailingPercent, double stopLossPercent,
+                               double targetProfitPercent, boolean useGraded, double initialHighestPrice) {
         this.buyPrice = buyPrice;
         this.baseTrailingPercent = baseTrailingPercent;
         this.stopLossPercent = stopLossPercent;
         this.targetProfitPercent = targetProfitPercent;
         this.useGraded = useGraded;
 
-        this.highestPrice = buyPrice;
+        this.highestPrice = initialHighestPrice > buyPrice ? buyPrice
+                : (initialHighestPrice > 0 ? initialHighestPrice : buyPrice);
         this.hardStopLine = buyPrice * (1 - stopLossPercent / 100.0);
         this.defenseLine = Math.max(buyPrice * (1 - baseTrailingPercent / 100.0), hardStopLine);
         this.isActive = true;
+
+        if (initialHighestPrice > buyPrice) {
+            updateHighestPrice(initialHighestPrice);
+        }
     }
 
     public double getBuyPrice() {
@@ -98,15 +108,17 @@ public class TrailingStopEngine {
         if (price > highestPrice) {
             highestPrice = price;
             double currentProfitPct = (highestPrice - buyPrice) / buyPrice * 100.0;
-            double effTrailing = calcEffectiveTrailing(currentProfitPct);
-            double newLine = Math.max(highestPrice * (1 - effTrailing / 100.0), hardStopLine);
-            defenseLine = Math.max(newLine, defenseLine);
+            if (!useGraded || currentProfitPct >= baseTrailingPercent) {
+                double effTrailing = calcEffectiveTrailing(currentProfitPct);
+                double newLine = Math.max(highestPrice * (1 - effTrailing / 100.0), hardStopLine);
+                defenseLine = Math.max(newLine, defenseLine);
+            }
         }
     }
 
     private double calcEffectiveTrailing(double currentProfitPct) {
         if (!useGraded) {
-            return baseTrailingPercent;
+            return Math.max(baseTrailingPercent, 1.5);
         }
         double eff;
         if (currentProfitPct <= 10) {
@@ -139,8 +151,10 @@ public class TrailingStopEngine {
         if (currentPrice > highestPrice) {
             highestPrice = currentPrice;
             double effTrailing = calcEffectiveTrailing(currentProfitPct);
-            double newLine = Math.max(highestPrice * (1 - effTrailing / 100.0), hardStopLine);
-            defenseLine = Math.max(newLine, defenseLine);
+            if (!useGraded || currentProfitPct >= baseTrailingPercent) {
+                double newLine = Math.max(highestPrice * (1 - effTrailing / 100.0), hardStopLine);
+                defenseLine = Math.max(newLine, defenseLine);
+            }
             String logMsg = String.format("创新高! 最高价=%.2f, 防守线上移至=%.2f (有效回撤=%.1f%%)", highestPrice, defenseLine, effTrailing);
 
             if (currentProfitPct >= 10 && currentProfitPct < 20) {
