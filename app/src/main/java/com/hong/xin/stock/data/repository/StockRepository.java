@@ -52,8 +52,9 @@ public class StockRepository {
                 if (parts.length >= 2) {
                     String code = parts[0].trim();
                     String name = parts[1].trim();
+                    String type = (parts.length >= 3) ? parts[2].trim() : Stock.TYPE_STOCK;
                     if (!code.isEmpty() && !name.isEmpty() && !code.equals("code")) {
-                        allStocks.add(new Stock(code, name));
+                        allStocks.add(new Stock(code, name, type));
                         lineCount++;
                     }
                 }
@@ -70,13 +71,18 @@ public class StockRepository {
     }
 
     public List<Stock> searchAll(String keyword) {
+        return searchAll(keyword, null);
+    }
+
+    public List<Stock> searchAll(String keyword, String type) {
         List<Stock> result = new ArrayList<>();
         if (keyword == null || keyword.trim().isEmpty()) {
             return result;
         }
         String kw = keyword.trim().toLowerCase(Locale.ROOT);
         for (Stock s : allStocks) {
-            if (s.getCode().contains(kw) || s.getName().toLowerCase(Locale.ROOT).contains(kw)) {
+            boolean matchType = (type == null) || type.equals(s.getType());
+            if (matchType && (s.getCode().contains(kw) || s.getName().toLowerCase(Locale.ROOT).contains(kw))) {
                 result.add(s);
             }
             if (result.size() >= 50) break;

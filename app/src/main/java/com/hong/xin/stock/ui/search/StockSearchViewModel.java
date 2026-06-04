@@ -200,8 +200,12 @@ public class StockSearchViewModel extends AndroidViewModel {
         }
 
         conversationHistory = new ArrayList<>();
-        conversationHistory.add(new DeepSeekApi.ChatMessage("system",
-                "你是一个专业的A股股票分析助手。请基于提供的K线数据和新闻，给出简洁实用的投资分析。"));
+        String systemRole = "你是一个专业的A股股票及ETF分析助手。请基于提供的K线数据和新闻，给出简洁实用的投资分析。";
+        Stock selected = uiState.getValue() != null ? uiState.getValue().getSelectedStock() : null;
+        if (selected != null && selected.isEtf()) {
+            systemRole = "你是一个专业的ETF分析助手。请基于提供的K线数据和新闻，给出简洁实用的投资分析。";
+        }
+        conversationHistory.add(new DeepSeekApi.ChatMessage("system", systemRole));
         conversationHistory.add(new DeepSeekApi.ChatMessage("user", prompt));
 
         DeepSeekApi.chat(new ArrayList<>(conversationHistory), new DeepSeekApi.Callback<String>() {
@@ -218,7 +222,8 @@ public class StockSearchViewModel extends AndroidViewModel {
 
     private String buildSimpleAnalysisPrompt(Stock stock, List<KlineData> klineList, List<String> news) {
         StringBuilder sb = new StringBuilder();
-        sb.append("请分析以下A股股票：\n\n");
+        String typeLabel = stock.isEtf() ? "ETF" : "A股股票";
+        sb.append("请分析以下").append(typeLabel).append("：\n\n");
         sb.append("代码: ").append(stock.getCode()).append("\n");
         sb.append("名称: ").append(stock.getName()).append("\n\n");
 

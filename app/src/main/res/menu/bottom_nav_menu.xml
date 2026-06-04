@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
+        android:id="@+id/nav_home"
+        android:icon="@drawable/ic_home"
+        android:title="首页" />
+    <item
         android:id="@+id/nav_trade"
         android:icon="@drawable/ic_trade"
         android:title="交易" />
-    <item
-        android:id="@+id/nav_analysis"
-        android:icon="@drawable/ic_analysis"
-        android:title="AI分析" />
     <item
         android:id="@+id/nav_settings"
         android:icon="@drawable/ic_settings"

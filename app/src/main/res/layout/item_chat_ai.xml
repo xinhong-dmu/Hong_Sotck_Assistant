@@ -16,6 +16,7 @@
         android:textSize="14sp"
         android:textColor="#FFFFFF"
         android:lineSpacingExtra="3dp"
-        android:gravity="start" />
+        android:gravity="start"
+        android:textIsSelectable="true" />
 
 </LinearLayout>

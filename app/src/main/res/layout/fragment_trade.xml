@@ -55,6 +55,22 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
+                    android:layout_marginTop="4dp"
+                    android:gravity="end">
+
+                    <CheckBox
+                        android:id="@+id/etf_filter_check"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="仅显示ETF"
+                        android:textSize="12sp"
+                        android:textColor="#666666" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
                     android:layout_marginTop="8dp">
 
                     <LinearLayout
@@ -63,6 +79,29 @@
                         android:layout_weight="1"
                         android:orientation="vertical"
                         android:layout_marginEnd="4dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="股票代码"
+                            android:textSize="13sp"
+                            android:textColor="#666666"
+                            android:layout_marginBottom="4dp" />
+
+                        <EditText
+                            android:id="@+id/stock_code"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="代码"
+                            android:textColor="@android:color/black" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:layout_marginStart="4dp">
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -79,29 +118,6 @@
                             android:hint="股票名称"
                             android:textColor="@android:color/black"
                             android:textColorHint="@android:color/darker_gray" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical"
-                        android:layout_marginStart="4dp">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="股票代码"
-                            android:textSize="13sp"
-                            android:textColor="#666666"
-                            android:layout_marginBottom="4dp" />
-
-                        <EditText
-                            android:id="@+id/stock_code"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:hint="代码"
-                            android:textColor="@android:color/black" />
                     </LinearLayout>
 
                 </LinearLayout>
@@ -336,6 +352,33 @@
                         android:text="结束/重置"
                         android:textColor="@android:color/white"
                         android:backgroundTint="#757575"
+                        android:layout_marginStart="4dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="8dp">
+
+                    <Button
+                        android:id="@+id/save_preset_btn"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="保存参数"
+                        android:textColor="@android:color/white"
+                        android:backgroundTint="#4CAF50"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/ai_analysis_btn"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="AI分析"
+                        android:textColor="@android:color/white"
+                        android:backgroundTint="#1565C0"
                         android:layout_marginStart="4dp" />
                 </LinearLayout>
 

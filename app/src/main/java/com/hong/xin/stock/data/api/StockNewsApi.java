@@ -7,7 +7,6 @@ import com.google.gson.JsonObject;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -15,10 +14,7 @@ import okhttp3.Response;
 
 public class StockNewsApi {
 
-    private static final OkHttpClient CLIENT = new OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
-            .build();
+    private static final OkHttpClient CLIENT = HttpClientFactory.getClient();
     private static final Gson GSON = new Gson();
 
     public static List<String> getStockNewsSync(String stockCode, String stockName, int count) {

@@ -51,12 +51,14 @@ public class TrailingStopEngine {
     private final double baseTrailingPercent;
     private final double stopLossPercent;
     private final double targetProfitPercent;
-    private final boolean useGraded;
+    private boolean useGraded;
 
     private double highestPrice;
     private double defenseLine;
     private double hardStopLine;
     private boolean isActive;
+    private boolean targetAlerted = false;
+    private boolean drawdownCriticalAlerted = false;
 
     public TrailingStopEngine(double buyPrice, double baseTrailingPercent, double stopLossPercent,
                               double targetProfitPercent, boolean useGraded) {
@@ -68,7 +70,7 @@ public class TrailingStopEngine {
 
         this.highestPrice = buyPrice;
         this.hardStopLine = buyPrice * (1 - stopLossPercent / 100.0);
-        this.defenseLine = buyPrice;
+        this.defenseLine = Math.max(buyPrice * (1 - baseTrailingPercent / 100.0), hardStopLine);
         this.isActive = true;
     }
 
@@ -80,12 +82,25 @@ public class TrailingStopEngine {
         return isActive;
     }
 
+    public void setTargetAlerted(boolean alerted) {
+        this.targetAlerted = alerted;
+    }
+
+    public void setUseGraded(boolean useGraded) {
+        this.useGraded = useGraded;
+    }
+
+    public void setDrawdownCriticalAlerted(boolean alerted) {
+        this.drawdownCriticalAlerted = alerted;
+    }
+
     public void updateHighestPrice(double price) {
         if (price > highestPrice) {
             highestPrice = price;
             double currentProfitPct = (highestPrice - buyPrice) / buyPrice * 100.0;
             double effTrailing = calcEffectiveTrailing(currentProfitPct);
-            defenseLine = Math.max(highestPrice * (1 - effTrailing / 100.0), hardStopLine);
+            double newLine = Math.max(highestPrice * (1 - effTrailing / 100.0), hardStopLine);
+            defenseLine = Math.max(newLine, defenseLine);
         }
     }
 
@@ -124,7 +139,8 @@ public class TrailingStopEngine {
         if (currentPrice > highestPrice) {
             highestPrice = currentPrice;
             double effTrailing = calcEffectiveTrailing(currentProfitPct);
-            defenseLine = Math.max(highestPrice * (1 - effTrailing / 100.0), hardStopLine);
+            double newLine = Math.max(highestPrice * (1 - effTrailing / 100.0), hardStopLine);
+            defenseLine = Math.max(newLine, defenseLine);
             String logMsg = String.format("创新高! 最高价=%.2f, 防守线上移至=%.2f (有效回撤=%.1f%%)", highestPrice, defenseLine, effTrailing);
 
             if (currentProfitPct >= 10 && currentProfitPct < 20) {
@@ -158,14 +174,16 @@ public class TrailingStopEngine {
             return new ActionResult(ActionType.TRAILING_STOP, state, msg);
         }
 
-        if (currentProfitPct >= targetProfitPercent) {
+        if (!targetAlerted && currentProfitPct >= targetProfitPercent) {
+            targetAlerted = true;
             String msg = String.format("达到目标止盈! 盈利=%.2f%%, 目标=%.1f%%", currentProfitPct, targetProfitPercent);
             TrailingStopState state = new TrailingStopState(highestPrice, defenseLine, hardStopLine, effTrailing, useGraded);
             return new ActionResult(ActionType.TARGET_REACHED, state, msg);
         }
 
         double drawdown = (highestPrice - currentPrice) / highestPrice * 100.0;
-        if (effTrailing > 0 && drawdown >= effTrailing * 0.8) {
+        if (!drawdownCriticalAlerted && effTrailing > 0 && drawdown >= effTrailing * 0.8) {
+            drawdownCriticalAlerted = true;
             String logMsg = String.format("高危预警: 回撤=%.2f%%, 已达容忍度(%.1f%%)的80%%", drawdown, effTrailing);
             TrailingStopState state = new TrailingStopState(highestPrice, defenseLine, hardStopLine, effTrailing, useGraded);
             return new ActionResult(ActionType.DRAWDOWN_CRITICAL, state, logMsg);

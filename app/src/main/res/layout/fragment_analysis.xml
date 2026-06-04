@@ -1,251 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <androidx.cardview.widget.CardView
-        android:id="@+id/analysis_panel"
+    <LinearLayout
+        android:id="@+id/analysis_toolbar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:cardElevation="2dp">
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="8dp"
+        android:background="@color/red_primary">
 
-        <LinearLayout
-            android:layout_width="match_parent"
+        <TextView
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="12dp">
+            android:layout_weight="1"
+            android:text="AI分析"
+            android:textSize="18sp"
+            android:textColor="@android:color/white"
+            android:textStyle="bold"
+            android:paddingStart="8dp" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="当前股票 AI 分析"
-                android:textStyle="bold"
-                android:textSize="16sp"
-                android:layout_marginBottom="12dp" />
+        <Button
+            android:id="@+id/stop_analysis_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="停止"
+            android:textSize="13sp"
+            android:textColor="@android:color/white"
+            android:backgroundTint="#F44336"
+            android:visibility="gone"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:layout_marginEnd="4dp" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="搜索股票"
-                android:textSize="13sp"
-                android:textColor="#666666"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="4dp" />
-
-            <AutoCompleteTextView
-                android:id="@+id/search_edit"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="输入代码或名称搜索..."
-                android:maxLines="1"
-                android:inputType="textFilter"
-                android:textColor="@android:color/black"
-                android:textColorHint="@android:color/darker_gray" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginTop="8dp">
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:layout_marginEnd="4dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="股票名称"
-                        android:textSize="13sp"
-                        android:textColor="#666666"
-                        android:layout_marginBottom="4dp" />
-
-                    <EditText
-                        android:id="@+id/stock_name"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:hint="名称"
-                        android:textColor="@android:color/black" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:layout_marginStart="4dp"
-                    android:layout_marginEnd="4dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="股票代码"
-                        android:textSize="13sp"
-                        android:textColor="#666666"
-                        android:layout_marginBottom="4dp" />
-
-                    <EditText
-                        android:id="@+id/stock_code"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:hint="代码"
-                        android:textColor="@android:color/black" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:layout_marginStart="4dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="K线天数"
-                        android:textSize="13sp"
-                        android:textColor="#666666"
-                        android:layout_marginBottom="4dp" />
-
-                    <EditText
-                        android:id="@+id/kline_days"
-                        android:layout_width="60dp"
-                        android:layout_height="wrap_content"
-                        android:text="120"
-                        android:inputType="number"
-                        android:textColor="@android:color/black" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginTop="8dp"
-                android:visibility="gone">
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:visibility="gone">
-
-                    <EditText
-                        android:id="@+id/buy_price_analysis"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:hint="元"
-                        android:inputType="numberDecimal"
-                        android:textColor="@android:color/black" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:visibility="gone">
-
-                    <EditText
-                        android:id="@+id/buy_date_analysis"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:hint="yyyy-MM-dd"
-                        android:gravity="center"
-                        android:focusable="false"
-                        android:cursorVisible="false"
-                        android:inputType="none"
-                        android:textColor="@android:color/black" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginTop="8dp"
-                android:visibility="gone">
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:layout_marginEnd="4dp">
-
-                    <EditText
-                        android:id="@+id/stop_loss_percent"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:hint="%"
-                        android:text="3"
-                        android:inputType="numberDecimal"
-                        android:textColor="@android:color/black" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:layout_marginStart="4dp">
-
-                    <EditText
-                        android:id="@+id/target_profit_percent"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:hint="%"
-                        android:text="15"
-                        android:inputType="numberDecimal"
-                        android:textColor="@android:color/black" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginTop="8dp">
-
-                <Button
-                    android:id="@+id/start_analysis_btn"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="开始AI分析"
-                    android:textSize="13sp"
-                    android:textColor="@android:color/white"
-                    android:backgroundTint="@color/red_primary"
-                    android:layout_marginEnd="4dp" />
-
-                <Button
-                    android:id="@+id/stop_analysis_btn"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="停止"
-                    android:textSize="13sp"
-                    android:textColor="@android:color/white"
-                    android:backgroundTint="#F44336"
-                    android:visibility="gone"
-                    android:layout_marginEnd="4dp" />
-
-                <Button
-                    android:id="@+id/clear_chat_btn"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="清除对话"
-                    android:textSize="13sp"
-                    android:textColor="@android:color/white"
-                    android:backgroundTint="#757575" />
-            </LinearLayout>
-        </LinearLayout>
-    </androidx.cardview.widget.CardView>
+        <Button
+            android:id="@+id/clear_chat_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="清除"
+            android:textSize="13sp"
+            android:textColor="@android:color/white"
+            android:backgroundTint="#757575"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp" />
+    </LinearLayout>
 
     <ScrollView
         android:id="@+id/chat_scroll"

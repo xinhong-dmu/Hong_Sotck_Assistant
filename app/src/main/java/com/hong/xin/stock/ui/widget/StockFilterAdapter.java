@@ -1,6 +1,7 @@
 package com.hong.xin.stock.ui.widget;
 
 import android.content.Context;
+import android.graphics.Color;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -23,11 +24,21 @@ public class StockFilterAdapter extends ArrayAdapter<Stock> {
     private static final String TAG = "StockFilterAdapter";
     private final StockRepository repository;
     private volatile StockFilter stockFilter;
+    private String typeFilter;
 
     public StockFilterAdapter(Context context) {
+        this(context, null);
+    }
+
+    public StockFilterAdapter(Context context, String typeFilter) {
         super(context, android.R.layout.simple_dropdown_item_1line);
         this.repository = StockRepository.getInstance();
-        DebugLogger.i(TAG, "StockFilterAdapter created, stock count in repo: " + repository.getStockCount());
+        this.typeFilter = typeFilter;
+        DebugLogger.i(TAG, "StockFilterAdapter created, stock count in repo: " + repository.getStockCount() + ", typeFilter: " + typeFilter);
+    }
+
+    public void setTypeFilter(String typeFilter) {
+        this.typeFilter = typeFilter;
     }
 
     public Stock getStock(int position) {
@@ -42,8 +53,14 @@ public class StockFilterAdapter extends ArrayAdapter<Stock> {
                     android.R.layout.simple_dropdown_item_1line, parent, false);
         }
         Stock stock = getItem(position);
-        ((TextView) convertView.findViewById(android.R.id.text1))
-                .setText(stock.getName() + " (" + stock.getCode() + ")");
+        TextView textView = convertView.findViewById(android.R.id.text1);
+        String label;
+        if (stock.isEtf()) {
+            label = "[ETF] " + stock.getName() + " (" + stock.getCode() + ")";
+        } else {
+            label = stock.getName() + " (" + stock.getCode() + ")";
+        }
+        textView.setText(label);
         return convertView;
     }
 
@@ -75,9 +92,9 @@ public class StockFilterAdapter extends ArrayAdapter<Stock> {
             }
 
             String keyword = constraint.toString();
-            DebugLogger.d(TAG, "performFiltering: keyword='" + keyword + "'");
+            DebugLogger.d(TAG, "performFiltering: keyword='" + keyword + "' typeFilter='" + typeFilter + "'");
 
-            List<Stock> found = repository.searchAll(keyword);
+            List<Stock> found = repository.searchAll(keyword, typeFilter);
             if (found == null) found = new ArrayList<>();
 
             DebugLogger.d(TAG, "performFiltering: found " + found.size() + " results");

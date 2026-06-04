@@ -23,6 +23,8 @@ import java.util.Locale;
 
 public class TradeViewModel extends AndroidViewModel {
 
+    public static java.util.function.Consumer<String> onPendingAlert;
+
     private final MutableLiveData<TradeUiState> uiState = new MutableLiveData<>(TradeUiState.builder().build());
     private final MutableLiveData<String> toastMessage = new MutableLiveData<>();
     private final MutableLiveData<String> alertDialog = new MutableLiveData<>();
@@ -30,6 +32,7 @@ public class TradeViewModel extends AndroidViewModel {
     private TrailingStopEngine engine;
     private final SettingsManager settingsManager;
     private final SimpleDateFormat dateFmt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+    private volatile boolean networkPriceUpdate = false;
 
     public TradeViewModel(Application application) {
         super(application);
@@ -47,6 +50,12 @@ public class TradeViewModel extends AndroidViewModel {
 
     public LiveData<String> getAlertDialog() {
         return alertDialog;
+    }
+
+    public boolean consumeNetworkPriceUpdate() {
+        boolean v = networkPriceUpdate;
+        networkPriceUpdate = false;
+        return v;
     }
 
     public void clearAlertDialog() {
@@ -71,7 +80,7 @@ public class TradeViewModel extends AndroidViewModel {
                 .useGraded(settingsManager.getUseGraded())
                 .currentPrice(settingsManager.getCurrentPrice())
                 .dashboardVisible(settingsManager.isDashboardVisible())
-                .highestPrice(0)
+                .highestPrice(settingsManager.getHighestPrice())
                 .defenseLine(settingsManager.getDefenseLine())
                 .hardStopLine(settingsManager.getHardStopLine())
                 .isActive(settingsManager.getIsActive());
@@ -122,6 +131,8 @@ public class TradeViewModel extends AndroidViewModel {
 
                 engine = new TrailingStopEngine(s.getBuyPrice(), s.getTrailingPercent(),
                         s.getStopLossPercent(), s.getTargetProfitPercent(), s.isUseGraded());
+                engine.setTargetAlerted(settingsManager.getTargetAlerted());
+                engine.setDrawdownCriticalAlerted(settingsManager.getDrawdownCriticalAlerted());
                 if (initialHighest > s.getBuyPrice()) {
                     engine.updateHighestPrice(initialHighest);
                 }
@@ -142,6 +153,16 @@ public class TradeViewModel extends AndroidViewModel {
                 .stopLossPercent(stopLoss).targetProfitPercent(targetProfit)
                 .trailingPercent(trailing).useGraded(useGraded)
                 .build());
+    }
+
+    public void updateUseGraded(boolean v) {
+        settingsManager.setUseGraded(v);
+        TradeUiState state = uiState.getValue();
+        if (state == null) return;
+        uiState.setValue(state.copy().useGraded(v).build());
+        if (engine != null && engine.isActive()) {
+            engine.setUseGraded(v);
+        }
     }
 
     public void startStrategy(double currentPrice) {
@@ -251,12 +272,10 @@ public class TradeViewModel extends AndroidViewModel {
                 if (quote.getPrice() > 0) {
                     TradeUiState current = uiState.getValue();
                     if (current != null) {
+                        networkPriceUpdate = true;
                         uiState.setValue(current.copy().currentPrice(quote.getPrice()).build());
                     }
                     toastMessage.setValue("实时价: " + String.format("%.2f", quote.getPrice()));
-                    if (engine != null && engine.isActive()) {
-                        updateCurrentPrice(quote.getPrice());
-                    }
                 } else if (quote.getName() != null && !quote.getName().isEmpty()) {
                     toastMessage.setValue(quote.getName() + " 休市或停牌，暂无实时价");
                 } else {
@@ -308,32 +327,44 @@ public class TradeViewModel extends AndroidViewModel {
 
         settingsManager.setDefenseLine(engineState.defenseLine);
         settingsManager.setHardStopLine(engineState.hardStopLine);
+        settingsManager.setHighestPrice(engineState.highestPrice);
         settingsManager.setDashboardVisible(true);
 
+        String alertMsg = null;
         switch (result.actionType) {
             case HARD_STOP:
                 settingsManager.setIsActive(false);
                 uiState.setValue(uiState.getValue().copy().isActive(false).build());
-                alertDialog.setValue("⛔ " + result.message);
+                alertMsg = "⛔ " + result.message;
                 saveExitRecord(currentPrice, "绝对止损");
                 break;
             case TRAILING_STOP:
                 settingsManager.setIsActive(false);
                 uiState.setValue(uiState.getValue().copy().isActive(false).build());
-                alertDialog.setValue("🛑 " + result.message);
+                alertMsg = "🛑 " + result.message;
                 saveExitRecord(currentPrice, "动态止盈");
                 break;
             case TARGET_REACHED:
-                alertDialog.setValue("🎯 " + result.message);
+                alertMsg = "🎯 " + result.message;
+                settingsManager.setTargetAlerted(true);
                 break;
             case MILESTONE_REACHED:
-                toastMessage.setValue("🏆 " + result.message);
+                alertMsg = "🏆 " + result.message;
                 break;
             case DRAWDOWN_CRITICAL:
-                toastMessage.setValue("⚠️ " + result.message);
+                alertMsg = "⚠️ " + result.message;
+                settingsManager.setDrawdownCriticalAlerted(true);
                 break;
             case NORMAL:
                 break;
+        }
+
+        if (alertMsg != null) {
+            settingsManager.setPendingAlertDialog(alertMsg);
+            alertDialog.setValue(alertMsg);
+            if (onPendingAlert != null) {
+                onPendingAlert.accept(alertMsg);
+            }
         }
 
         TradeRepository.appendLog(getApplication().getCacheDir(), result.message);

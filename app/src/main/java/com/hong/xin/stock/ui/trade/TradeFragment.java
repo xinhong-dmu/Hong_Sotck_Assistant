@@ -1,6 +1,7 @@
 package com.hong.xin.stock.ui.trade;
 
 import android.app.DatePickerDialog;
+import android.content.Intent;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.LayoutInflater;
@@ -9,6 +10,7 @@ import android.view.ViewGroup;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -20,12 +22,16 @@ import androidx.lifecycle.ViewModelProvider;
 
 import com.hong.xin.stock.R;
 import com.hong.xin.stock.data.model.Stock;
+import com.hong.xin.stock.data.model.TradePreset;
 import com.hong.xin.stock.data.repository.StockRepository;
+import com.hong.xin.stock.ui.analysis.AnalysisActivity;
 import com.hong.xin.stock.ui.widget.StockFilterAdapter;
+import com.hong.xin.stock.util.SettingsManager;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
@@ -37,13 +43,15 @@ public class TradeFragment extends Fragment {
     private EditText stockName, stockCode, buyPrice, buyDate, stopLossPercent, targetProfitPercent;
     private EditText trailingPercent, currentPrice;
     private CheckBox useGraded;
-    private Button updatePriceBtn, confirmPriceBtn, clearTradeBtn;
+    private CheckBox etfFilterCheck;
+    private Button updatePriceBtn, confirmPriceBtn, clearTradeBtn, savePresetBtn, aiAnalysisBtn;
     private View dashboardCard;
     private TextView dashboardHighest, dashboardDefense, dashboardHardStop, dashboardProfit;
     private TextView dashboardDrawdown, dashboardDistance, dashboardTrailingNote;
 
     private StockRepository stockRepository;
     private StockFilterAdapter searchAdapter;
+    private SettingsManager settingsManager;
     private boolean updatingFromObserver = false;
 
     @Nullable
@@ -58,6 +66,7 @@ public class TradeFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
 
         viewModel = new ViewModelProvider(this).get(TradeViewModel.class);
+        settingsManager = new SettingsManager(requireContext());
         stockRepository = StockRepository.getInstance();
 
         initViews(view);
@@ -76,10 +85,13 @@ public class TradeFragment extends Fragment {
         targetProfitPercent = view.findViewById(R.id.target_profit_percent);
         trailingPercent = view.findViewById(R.id.trailing_percent);
         useGraded = view.findViewById(R.id.use_graded);
+        etfFilterCheck = view.findViewById(R.id.etf_filter_check);
         currentPrice = view.findViewById(R.id.current_price);
         updatePriceBtn = view.findViewById(R.id.update_price_btn);
         confirmPriceBtn = view.findViewById(R.id.confirm_price_btn);
         clearTradeBtn = view.findViewById(R.id.clear_trade_btn);
+        savePresetBtn = view.findViewById(R.id.save_preset_btn);
+        aiAnalysisBtn = view.findViewById(R.id.ai_analysis_btn);
         dashboardCard = view.findViewById(R.id.dashboard_card);
         dashboardHighest = view.findViewById(R.id.dashboard_highest);
         dashboardDefense = view.findViewById(R.id.dashboard_defense);
@@ -105,6 +117,12 @@ public class TradeFragment extends Fragment {
             }
             searchEdit.setText("");
         });
+
+        etfFilterCheck.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            String typeFilter = isChecked ? Stock.TYPE_ETF : null;
+            searchAdapter.setTypeFilter(typeFilter);
+            searchEdit.setAdapter(searchAdapter);
+        });
     }
 
     private void setupListeners() {
@@ -115,6 +133,7 @@ public class TradeFragment extends Fragment {
             if (!isChecked) {
                 trailingPercent.setText("0");
             }
+            viewModel.updateUseGraded(isChecked);
         });
 
         updatePriceBtn.setOnClickListener(v -> viewModel.fetchRealtimePrice());
@@ -141,6 +160,50 @@ public class TradeFragment extends Fragment {
                     .setPositiveButton("确定", (dialog, which) -> viewModel.resetTrade())
                     .setNegativeButton("取消", null)
                     .show();
+        });
+
+        savePresetBtn.setOnClickListener(v -> {
+            String name = stockName.getText().toString().trim();
+            String code = stockCode.getText().toString().trim();
+            if (name.isEmpty() || code.isEmpty()) {
+                Toast.makeText(requireContext(), "请先输入股票名称和代码", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            double buyP = 0;
+            try { buyP = Double.parseDouble(buyPrice.getText().toString().trim()); } catch (NumberFormatException ignored) {}
+            if (buyP <= 0) {
+                Toast.makeText(requireContext(), "请先输入有效的买入价", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            String date = buyDate.getText().toString().trim();
+            double stopLoss = 3;
+            try { stopLoss = Double.parseDouble(stopLossPercent.getText().toString().trim()); } catch (NumberFormatException ignored) {}
+            double targetProfit = 10;
+            try { targetProfit = Double.parseDouble(targetProfitPercent.getText().toString().trim()); } catch (NumberFormatException ignored) {}
+            double trailing = 0;
+            try { trailing = Double.parseDouble(trailingPercent.getText().toString().trim()); } catch (NumberFormatException ignored) {}
+            boolean graded = useGraded.isChecked();
+
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
+            String savedAt = sdf.format(new Date());
+            String id = String.valueOf(System.currentTimeMillis());
+
+            TradePreset preset = new TradePreset(id, name, code, buyP, date,
+                    stopLoss, targetProfit, trailing, graded, savedAt);
+            settingsManager.savePreset(preset);
+            Toast.makeText(requireContext(), "交易参数已保存到首页", Toast.LENGTH_SHORT).show();
+        });
+
+        aiAnalysisBtn.setOnClickListener(v -> {
+            String name = stockName.getText().toString().trim();
+            String code = stockCode.getText().toString().trim();
+            if (name.isEmpty() || code.isEmpty()) {
+                Toast.makeText(requireContext(), "请先输入股票名称和代码", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            saveInputParams();
+            Intent intent = new Intent(requireContext(), AnalysisActivity.class);
+            startActivity(intent);
         });
 
         stockCode.addTextChangedListener(new android.text.TextWatcher() {
@@ -179,17 +242,21 @@ public class TradeFragment extends Fragment {
         viewModel.getUiState().observe(getViewLifecycleOwner(), state -> {
             if (state == null) return;
 
-            updatingFromObserver = true;
-            stockName.setText(state.getStockName());
-            stockCode.setText(state.getStockCode());
-            updatingFromObserver = false;
-            if (state.getBuyPrice() > 0) buyPrice.setText(String.valueOf(state.getBuyPrice()));
-            buyDate.setText(state.getBuyDate());
-            stopLossPercent.setText(String.valueOf((int) state.getStopLossPercent()));
-            targetProfitPercent.setText(String.valueOf((int) state.getTargetProfitPercent()));
-            trailingPercent.setText(String.valueOf((int) state.getTrailingPercent()));
-            useGraded.setChecked(state.isUseGraded());
-            trailingPercent.setEnabled(state.isUseGraded());
+            boolean networkOnly = viewModel.consumeNetworkPriceUpdate();
+
+            if (!networkOnly) {
+                updatingFromObserver = true;
+                stockName.setText(state.getStockName());
+                stockCode.setText(state.getStockCode());
+                updatingFromObserver = false;
+                if (state.getBuyPrice() > 0) buyPrice.setText(String.valueOf(state.getBuyPrice()));
+                buyDate.setText(state.getBuyDate());
+                stopLossPercent.setText(String.valueOf((int) state.getStopLossPercent()));
+                targetProfitPercent.setText(String.valueOf((int) state.getTargetProfitPercent()));
+                trailingPercent.setText(String.valueOf((int) state.getTrailingPercent()));
+                useGraded.setChecked(state.isUseGraded());
+                trailingPercent.setEnabled(state.isUseGraded());
+            }
             if (state.getCurrentPrice() > 0) currentPrice.setText(String.format("%.2f", state.getCurrentPrice()));
 
             if (state.isDashboardVisible()) {
@@ -206,22 +273,35 @@ public class TradeFragment extends Fragment {
                 viewModel.clearToastMessage();
             }
         });
-
-        viewModel.getAlertDialog().observe(getViewLifecycleOwner(), msg -> {
-            if (msg != null) {
-                new androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                        .setTitle("交易提醒")
-                        .setMessage(msg)
-                        .setPositiveButton("确定", (dialog, which) -> viewModel.clearAlertDialog())
-                        .show();
-            }
-        });
     }
 
     private void updateDashboard(TradeUiState state) {
         dashboardHighest.setText("📈 买入以来最高价: " + String.format("%.2f", state.getHighestPrice()));
-        dashboardDefense.setText("🛡 当前防守线: " + String.format("%.2f", state.getDefenseLine()));
         dashboardHardStop.setText("⚠ 绝对止损线: " + String.format("%.2f", state.getHardStopLine()));
+
+        if (state.isUseGraded()) {
+            dashboardDefense.setVisibility(View.VISIBLE);
+            dashboardDistance.setVisibility(View.VISIBLE);
+            dashboardTrailingNote.setVisibility(View.VISIBLE);
+            dashboardDefense.setText("🛡 当前防守线: " + String.format("%.2f", state.getDefenseLine()));
+            double dist = state.getDistanceToDefense();
+            String distStr = String.format("📊 距防守线空间: %.2f%%", dist);
+            dashboardDistance.setText(dist < 0 ? distStr + " ⚠⚠⚠" : distStr);
+            String note = "⚙ 有效回撤容忍: " + String.format("%.1f%%", state.getEffectiveTrailing());
+            if (state.isGradedEffect()) {
+                note += " | 分级收紧已启用";
+            } else {
+                note += " | 分级收紧未启用";
+            }
+            dashboardTrailingNote.setText(note);
+            if (state.getDefenseLine() > 0) {
+                dashboardDefense.setTextColor(0xFF1565C0);
+            }
+        } else {
+            dashboardDefense.setVisibility(View.GONE);
+            dashboardDistance.setVisibility(View.GONE);
+            dashboardTrailingNote.setVisibility(View.GONE);
+        }
 
         double profit = state.getProfitPct();
         String profitStr = String.format("💰 当前账面收益: %.2f%%", profit);
@@ -243,23 +323,8 @@ public class TradeFragment extends Fragment {
             dashboardDrawdown.setText(ddStr);
         }
 
-        double dist = state.getDistanceToDefense();
-        String distStr = String.format("📊 距防守线空间: %.2f%%", dist);
-        dashboardDistance.setText(dist < 0 ? distStr + " ⚠⚠⚠" : distStr);
-
-        String note = "⚙ 有效回撤容忍: " + String.format("%.1f%%", state.getEffectiveTrailing());
-        if (state.isGradedEffect()) {
-            note += " | 分级收紧已启用";
-        } else {
-            note += " | 分级收紧未启用";
-        }
-        dashboardTrailingNote.setText(note);
-
         if (state.getHighestPrice() > 0) {
             dashboardHighest.setTextColor(0xFFE65100);
-        }
-        if (state.getDefenseLine() > 0) {
-            dashboardDefense.setTextColor(0xFF1565C0);
         }
         if (state.getHardStopLine() > 0) {
             dashboardHardStop.setTextColor(0xFFD32F2F);

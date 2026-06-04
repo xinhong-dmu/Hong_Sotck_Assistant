@@ -152,6 +152,24 @@ public class AiAnalysisViewModel extends AndroidViewModel {
         uiState.setValue(state.copy().trailingPercent(pct).build());
     }
 
+    public void loadFromSettings() {
+        String code = settingsManager.getLastStockCode();
+        String name = settingsManager.getLastStockName();
+        double buyPrice = settingsManager.getLastBuyPrice();
+        String buyDate = settingsManager.getLastBuyDate();
+        int klineDays = settingsManager.getKlineDays();
+        double stopLoss = settingsManager.getStopLossPercent();
+        double targetProfit = settingsManager.getTargetProfitPercent();
+
+        AiAnalysisState state = uiState.getValue();
+        if (state == null) return;
+        uiState.setValue(state.copy()
+                .stockCode(code).stockName(name)
+                .buyPrice(buyPrice).buyDate(buyDate).klineDays(klineDays)
+                .stopLossPercent(stopLoss).targetProfitPercent(targetProfit)
+                .build());
+    }
+
     public void updateUseGraded(boolean use) {
         AiAnalysisState state = uiState.getValue();
         if (state == null) return;

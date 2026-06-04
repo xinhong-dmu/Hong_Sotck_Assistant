@@ -3,6 +3,13 @@ package com.hong.xin.stock.util;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import com.hong.xin.stock.data.model.TradePreset;
+
+import java.util.ArrayList;
+import java.util.List;
+
 public class SettingsManager {
 
     private static final String PREF_NAME = "stock_settings";
@@ -24,9 +31,15 @@ public class SettingsManager {
     private static final String KEY_MESSAGES = "analysis_messages";
     private static final String KEY_KLINE_DAYS = "kline_days";
     private static final String KEY_IS_ANALYZING = "is_analyzing";
+    private static final String KEY_ANALYSIS_REQUESTED = "analysis_requested";
     private static final String KEY_DEEPSEEK_MODEL = "deepseek_model";
+    private static final String KEY_PENDING_ALERT_DIALOG = "pending_alert_dialog";
+    private static final String KEY_TARGET_ALERTED = "target_alerted";
+    private static final String KEY_DRAWDOWN_ALERTED = "drawdown_alerted";
+    private static final String KEY_PRESETS = "trade_presets";
 
     private final SharedPreferences prefs;
+    private final Gson gson = new Gson();
 
     public SettingsManager(Context context) {
         this.prefs = context.getApplicationContext().getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
@@ -74,6 +87,9 @@ public class SettingsManager {
     public void setHardStopLine(double line) { prefs.edit().putFloat(KEY_HARD_STOP_LINE, (float) line).apply(); }
     public double getHardStopLine() { return getSafeFloat(KEY_HARD_STOP_LINE, 0); }
 
+    public void setHighestPrice(double price) { prefs.edit().putFloat(KEY_HIGHEST_PRICE, (float) price).apply(); }
+    public double getHighestPrice() { return getSafeFloat(KEY_HIGHEST_PRICE, 0); }
+
     public void setIsActive(boolean active) { prefs.edit().putBoolean(KEY_IS_ACTIVE, active).apply(); }
     public boolean getIsActive() { return prefs.getBoolean(KEY_IS_ACTIVE, false); }
 
@@ -98,6 +114,9 @@ public class SettingsManager {
     public void setIsAnalyzing(boolean analyzing) { prefs.edit().putBoolean(KEY_IS_ANALYZING, analyzing).apply(); }
     public boolean getIsAnalyzing() { return prefs.getBoolean(KEY_IS_ANALYZING, false); }
 
+    public void setAnalysisRequested(boolean requested) { prefs.edit().putBoolean(KEY_ANALYSIS_REQUESTED, requested).apply(); }
+    public boolean isAnalysisRequested() { return prefs.getBoolean(KEY_ANALYSIS_REQUESTED, false); }
+
     public void saveTradeParams(String name, String code, double buyPrice, String buyDate,
                                 double stopLoss, double targetProfit, double trailing, boolean useGraded) {
         prefs.edit()
@@ -113,6 +132,17 @@ public class SettingsManager {
                 .apply();
     }
 
+    public void setPendingAlertDialog(String message) { prefs.edit().putString(KEY_PENDING_ALERT_DIALOG, message).apply(); }
+    public String getPendingAlertDialog() { return prefs.getString(KEY_PENDING_ALERT_DIALOG, null); }
+    public boolean hasPendingAlertDialog() { return prefs.contains(KEY_PENDING_ALERT_DIALOG); }
+    public void clearPendingAlertDialog() { prefs.edit().remove(KEY_PENDING_ALERT_DIALOG).apply(); }
+
+    public void setTargetAlerted(boolean alerted) { prefs.edit().putBoolean(KEY_TARGET_ALERTED, alerted).apply(); }
+    public boolean getTargetAlerted() { return prefs.getBoolean(KEY_TARGET_ALERTED, false); }
+
+    public void setDrawdownCriticalAlerted(boolean alerted) { prefs.edit().putBoolean(KEY_DRAWDOWN_ALERTED, alerted).apply(); }
+    public boolean getDrawdownCriticalAlerted() { return prefs.getBoolean(KEY_DRAWDOWN_ALERTED, false); }
+
     public void clearDashboard() {
         prefs.edit()
                 .putBoolean(KEY_DASHBOARD_VISIBLE, false)
@@ -120,6 +150,49 @@ public class SettingsManager {
                 .putFloat(KEY_HIGHEST_PRICE, 0)
                 .putFloat(KEY_DEFENSE_LINE, 0)
                 .putFloat(KEY_HARD_STOP_LINE, 0)
+                .putBoolean(KEY_TARGET_ALERTED, false)
+                .putBoolean(KEY_DRAWDOWN_ALERTED, false)
+                .apply();
+    }
+
+    public List<TradePreset> getPresets() {
+        String json = prefs.getString(KEY_PRESETS, "[]");
+        try {
+            java.lang.reflect.Type type = new TypeToken<List<TradePreset>>(){}.getType();
+            List<TradePreset> presets = gson.fromJson(json, type);
+            return presets != null ? presets : new ArrayList<TradePreset>();
+        } catch (Exception e) {
+            return new ArrayList<TradePreset>();
+        }
+    }
+
+    public void savePreset(TradePreset preset) {
+        List<TradePreset> presets = getPresets();
+        presets.add(0, preset);
+        prefs.edit().putString(KEY_PRESETS, gson.toJson(presets)).apply();
+    }
+
+    public void deletePreset(String id) {
+        List<TradePreset> presets = getPresets();
+        for (int i = 0; i < presets.size(); i++) {
+            if (presets.get(i).getId().equals(id)) {
+                presets.remove(i);
+                break;
+            }
+        }
+        prefs.edit().putString(KEY_PRESETS, gson.toJson(presets)).apply();
+    }
+
+    public void loadPresetParams(TradePreset preset) {
+        prefs.edit()
+                .putString(KEY_STOCK_NAME, preset.getStockName())
+                .putString(KEY_STOCK_CODE, preset.getStockCode())
+                .putFloat(KEY_BUY_PRICE, (float) preset.getBuyPrice())
+                .putString(KEY_BUY_DATE, preset.getBuyDate())
+                .putFloat(KEY_STOP_LOSS, (float) preset.getStopLossPercent())
+                .putFloat(KEY_TARGET_PROFIT, (float) preset.getTargetProfitPercent())
+                .putFloat(KEY_TRAILING, (float) preset.getTrailingPercent())
+                .putBoolean(KEY_USE_GRADED, preset.isUseGraded())
                 .apply();
     }
 }

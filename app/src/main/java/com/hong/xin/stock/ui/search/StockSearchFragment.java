@@ -95,7 +95,11 @@ public class StockSearchFragment extends Fragment {
             Stock selected = searchAdapter.getStock(position);
             if (selected != null) {
                 currentSelectedStock = selected;
-                selectedStockInfo.setText("已选: " + selected.getName() + " (" + selected.getCode() + ")");
+                String info = "已选: " + selected.getName() + " (" + selected.getCode() + ")";
+                if (selected.isEtf()) {
+                    info = "[ETF] " + info;
+                }
+                selectedStockInfo.setText(info);
                 selectedStockInfo.setVisibility(View.VISIBLE);
                 aiAnalysisBtn.setVisibility(View.VISIBLE);
                 viewModel.selectStock(selected);
@@ -141,7 +145,11 @@ public class StockSearchFragment extends Fragment {
 
             if (hasStock && state.getSelectedStock() != currentSelectedStock) {
                 currentSelectedStock = state.getSelectedStock();
-                selectedStockInfo.setText("已选: " + currentSelectedStock.getName() + " (" + currentSelectedStock.getCode() + ")");
+                String info = "已选: " + currentSelectedStock.getName() + " (" + currentSelectedStock.getCode() + ")";
+                if (currentSelectedStock.isEtf()) {
+                    info = "[ETF] " + info;
+                }
+                selectedStockInfo.setText(info);
                 selectedStockInfo.setVisibility(View.VISIBLE);
                 aiAnalysisBtn.setVisibility(View.VISIBLE);
             }

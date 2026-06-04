@@ -5,9 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -20,11 +18,7 @@ public class DeepSeekApi {
     private static final String API_URL = "https://api.deepseek.com/v1/chat/completions";
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
     private static final Gson GSON = new Gson();
-    private static final OkHttpClient CLIENT = new OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
-            .build();
+    private static final OkHttpClient CLIENT = HttpClientFactory.getClient();
 
     private static String apiKey = "";
     private static String model = "deepseek-chat";
