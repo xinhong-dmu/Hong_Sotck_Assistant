@@ -218,6 +218,10 @@ public class TencentApi {
     }
 
     private static String getTencentPrefix(String code) {
+        if (code.equals("000001") || code.equals("000016") || code.equals("000300")
+                || code.equals("000688") || code.equals("000852")) {
+            return "sh";
+        }
         if (code.startsWith("6") || code.startsWith("9") || code.startsWith("5")) {
             return "sh";
         } else if (code.startsWith("8") || code.startsWith("4")) {

@@ -7,9 +7,11 @@ public class Stock {
     public static final String TYPE_STOCK = "stock";
     public static final String TYPE_ETF = "etf";
 
-    private final String code;
-    private final String name;
-    private final String type;
+    private String code;
+    private String name;
+    private String type;
+
+    public Stock() {}
 
     public Stock(String code, String name) {
         this(code, name, TYPE_STOCK);

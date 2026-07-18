@@ -1,91 +1,92 @@
 package com.hong.xin.stock;
 
+import android.content.Intent;
 import android.os.Bundle;
+import android.widget.TextView;
 
-import androidx.appcompat.app.AlertDialog;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.android.material.bottomnavigation.BottomNavigationView;
-import com.hong.xin.stock.ui.home.HomeFragment;
-import com.hong.xin.stock.ui.trade.TradeFragment;
-import com.hong.xin.stock.ui.trade.TradeViewModel;
-import com.hong.xin.stock.ui.settings.SettingsFragment;
-import com.hong.xin.stock.util.SettingsManager;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.hong.xin.stock.data.SelectedStockManager;
+import com.hong.xin.stock.data.StockListCache;
+import com.hong.xin.stock.data.api.EastMoneyApi;
+import com.hong.xin.stock.data.model.Stock;
+
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
-    private BottomNavigationView bottomNav;
+    private static final int REQUEST_SEARCH = 1;
+
+    private SelectedStockManager stockManager;
+    private SelectedStockAdapter adapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        TradeViewModel.onPendingAlert = msg -> {
-            SettingsManager sm = new SettingsManager(this);
-            sm.clearPendingAlertDialog();
-            runOnUiThread(() -> new AlertDialog.Builder(this)
-                    .setTitle("交易提醒")
-                    .setMessage(msg)
-                    .setPositiveButton("确定", null)
-                    .show());
-        };
+        stockManager = SelectedStockManager.getInstance(this);
 
-        bottomNav = findViewById(R.id.bottom_navigation);
+        EastMoneyApi.init(StockListCache.getInstance(this));
 
-        if (savedInstanceState == null) {
-            getSupportFragmentManager().beginTransaction()
-                    .replace(R.id.fragment_container, new HomeFragment())
-                    .commit();
-        }
+        StrategyNotificationHelper.createChannel(this);
+        StrategyAlarmScheduler.scheduleAlarms(this);
 
-        bottomNav.setOnItemSelectedListener(item -> {
-            Fragment fragment;
-            int id = item.getItemId();
-            if (id == R.id.nav_home) {
-                fragment = new HomeFragment();
-            } else if (id == R.id.nav_trade) {
-                fragment = new TradeFragment();
-            } else if (id == R.id.nav_settings) {
-                fragment = new SettingsFragment();
-            } else {
-                return false;
-            }
-            getSupportFragmentManager().beginTransaction()
-                    .replace(R.id.fragment_container, fragment)
-                    .commit();
-            showPendingAlert();
-            return true;
+        RecyclerView recyclerView = findViewById(R.id.recycler_view);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+
+        List<Stock> stocks = stockManager.getSelectedStocks();
+        adapter = new SelectedStockAdapter(stocks, stock -> {
+            stockManager.removeStock(stock.getCode());
+            adapter.updateList(stockManager.getSelectedStocks());
+            updateEmptyState();
+        }, stock -> {
+            Intent intent = new Intent(MainActivity.this, StockDetailActivity.class);
+            intent.putExtra("code", stock.getCode());
+            intent.putExtra("name", stock.getName());
+            intent.putExtra("type", stock.getType());
+            startActivity(intent);
+        });
+        recyclerView.setAdapter(adapter);
+
+        updateEmptyState();
+
+        FloatingActionButton fab = findViewById(R.id.fab_add);
+        fab.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, StockSearchActivity.class);
+            startActivityForResult(intent, REQUEST_SEARCH);
+        });
+
+        TextView btnStrategies = findViewById(R.id.btn_strategies);
+        btnStrategies.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, StrategyListActivity.class);
+            startActivity(intent);
         });
     }
 
-    public void switchToTradeTab() {
-        bottomNav.setSelectedItemId(R.id.nav_trade);
+    private void updateEmptyState() {
+        TextView emptyView = findViewById(R.id.empty_view);
+        RecyclerView recyclerView = findViewById(R.id.recycler_view);
+        List<Stock> stocks = stockManager.getSelectedStocks();
+        if (stocks.isEmpty()) {
+            emptyView.setVisibility(TextView.VISIBLE);
+            recyclerView.setVisibility(RecyclerView.GONE);
+        } else {
+            emptyView.setVisibility(TextView.GONE);
+            recyclerView.setVisibility(RecyclerView.VISIBLE);
+        }
     }
 
     @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        TradeViewModel.onPendingAlert = null;
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        showPendingAlert();
-    }
-
-    private void showPendingAlert() {
-        SettingsManager sm = new SettingsManager(this);
-        if (sm.hasPendingAlertDialog()) {
-            String msg = sm.getPendingAlertDialog();
-            sm.clearPendingAlertDialog();
-            new AlertDialog.Builder(this)
-                    .setTitle("交易提醒")
-                    .setMessage(msg)
-                    .setPositiveButton("确定", null)
-                    .show();
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_SEARCH && resultCode == RESULT_OK) {
+            adapter.updateList(stockManager.getSelectedStocks());
+            updateEmptyState();
         }
     }
 }

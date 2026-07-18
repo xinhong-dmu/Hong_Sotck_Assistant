@@ -3,10 +3,8 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
-        android:name=".StockApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -14,24 +12,42 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:usesCleartextTraffic="true"
         android:theme="@style/Theme.Stock">
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
-            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.Stock">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         <activity
-            android:name=".ui.analysis.AnalysisActivity"
+            android:name=".StockSearchActivity"
             android:exported="false"
+            android:label="搜索股票"
             android:theme="@style/Theme.Stock" />
+        <activity
+            android:name=".StockDetailActivity"
+            android:exported="false"
+            android:label="股票详情"
+            android:theme="@style/Theme.Stock" />
+        <activity
+            android:name=".DeepSeekChatActivity"
+            android:exported="false"
+            android:label="AI分析"
+            android:theme="@style/Theme.Stock"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".StrategyListActivity"
+            android:exported="false"
+            android:label="策略管理"
+            android:theme="@style/Theme.Stock" />
+
+        <receiver
+            android:name=".StrategyCheckReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

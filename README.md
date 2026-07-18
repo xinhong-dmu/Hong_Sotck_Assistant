@@ -1,250 +1,443 @@
-# 弘股助手 — Hong Stock Assistant
+# 弘股助手 — Android 股票助手应用
 
-> A股智能交易助手 — 动态跟踪止盈止损 · AI 多维技术分析
-
----
-
-## 交易策略
-
-本系统基于 **动态跟踪止盈止损策略**，核心思想是：买入后不断上调防守线，让利润奔跑的同时控制回撤风险。
-
-### 核心公式
-
-| 指标 | 公式 | 说明 |
-|---|---|---|
-| **硬止损线** | `买入价 × (1 − 止损比例%)` | 保底防线，跌破无条件离场 |
-| **防守线** | `max(买入以来最高价 × (1 − 有效跟踪比例%), 硬止损线)` | 动态上移，只升不降 |
-| **有效跟踪比例** | `基础跟踪比例 × 梯度系数` | 盈利越大，容忍度越紧 |
-| **账面盈利** | `(现价 − 买入价) / 买入价 × 100%` | 当前浮动盈亏 |
-| **回撤幅度** | `(最高价 − 现价) / 最高价 × 100%` | 距最高点的回落幅度 |
-
-### 触发规则
-
-| 触发类型 | 条件 | 行为 | 图标 |
-|---|---|---|---|
-| **硬止损** | 现价 ≤ 硬止损线 | 立即离场，记录交易 | ⛔ |
-| **动态止盈** | 现价 ≤ 防守线 | 锁定利润，离场 | 🛑 |
-| **目标止盈** | 盈利% ≥ 目标止盈比例 | 提醒用户（继续监控） | 🎯 |
-| **里程碑提醒** | 盈利突破 10% / 20% / 30% / 50% | 阶段提示 | 🏆 |
-| **回撤高危预警** | 回撤 ≥ 有效跟踪比例 × 80% | 提前警告，关注盘面 | ⚠️ |
-
-### 梯度回撤收紧
-
-随盈利增长自动收紧回撤容忍度，防止大幅回吐利润：
-
-| 盈利区间 | 收紧系数 | 效果 |
-|---|---|---|
-| ≤ 10% | 100%（不收紧） | 给股价充分波动空间 |
-| 10% ~ 20% | 60% | 适度收紧 |
-| 20% ~ 30% | 40% | 加速收紧 |
-| > 30% | 25% | 严控回撤，最低容忍 1.5% |
-
-> 例如：基础跟踪比例 8%，盈利 15% 时，有效跟踪 = 8% × 60% = 4.8%
-
----
-
-## 智能交易监控
-
-### 监控流程
+## 功能架构
 
 ```
-输入参数 → 启动监控 → 自动回溯K线 → 实时轮询行情 → 逐笔判断触发 → 弹窗/记录
+com.hong.xin.stock/
+├── MainActivity.java              # 主页：自选股列表
+├── StockDetailActivity.java       # 个股详情：实时行情 + K线/分时图 + 盈亏计算
+├── StockSearchActivity.java       # 股票/ETF搜索
+├── DeepSeekChatActivity.java      # AI智能分析 (DeepSeek)
+├── StrategyListActivity.java      # 交易策略管理
+├── MinuteChartView.java           # 自定义分时图控件
+├── KlineChartView.java            # 自定义K线图控件
+├── StrategyAlarmScheduler.java    # 策略告警定时任务
+├── StrategyCheckReceiver.java     # 策略条件检测广播接收器
+├── StrategyNotificationHelper.java # 策略触发推送通知
+├── ChatAdapter.java               # 聊天消息适配器
+├── SearchResultAdapter.java       # 搜索结果适配器
+├── SelectedStockAdapter.java      # 自选股列表适配器
+├── data/
+│   ├── SelectedStockManager.java  # 自选股管理 (SharedPreferences)
+│   ├── StrategyManager.java       # 策略管理 (SharedPreferences)
+│   ├── PurchaseRecordManager.java # 买入记录管理 (SharedPreferences)
+│   ├── ChatHistoryManager.java    # 聊天历史管理 (SharedPreferences)
+│   ├── PromptTemplateManager.java # AI提示词模板管理 (SharedPreferences)
+│   ├── StockListCache.java        # 股票/ETF列表本地缓存
+│   ├── api/
+│   │   ├── EastMoneyApi.java      # 主数据接口 (新浪→腾讯→东方财富多源降级)
+│   │   ├── TencentApi.java        # 腾讯数据源
+│   │   ├── DeepSeekApi.java       # DeepSeek AI接口
+│   │   ├── StockNewsApi.java      # 新浪财经新闻
+│   │   ├── StockDataCache.java    # 内存LRU缓存
+│   │   └── HttpClientFactory.java # OkHttp客户端工厂
+│   └── model/
+│       ├── RealtimeQuote.java     # 实时行情（不可变，Builder模式）
+│       ├── KlineData.java         # K线数据
+│       ├── MinuteLineData.java    # 分时数据
+│       ├── Stock.java             # 股票/ETF基本信息
+│       ├── Strategy.java          # 交易策略
+│       ├── ChatMessage.java       # 聊天消息
+│       └── PurchaseRecord.java    # 买入记录
+└── util/
+    └── DebugLogger.java           # 调试日志
 ```
 
-1. **参数输入**：输入股票代码、买入价、买入日期、止损比例、目标止盈、跟踪比例
-2. **K线回溯**：自动拉取买入日至今的K线数据，计算准确的买入以来最高价作为策略起点
-3. **实时监控**：每 3 秒轮询实时行情，逐笔调用策略引擎判断触发条件
-4. **分级预警**：根据触发类型弹窗提醒或自动记录离场
+## 核心功能
 
-### 监控面板
+| 模块 | 功能说明 |
+|------|---------|
+| **自选股** | 添加/删除 A股 & ETF，持久化存储 |
+| **个股详情** | 实时价、开高低收、PE/PB、市值、换手率、量比、涨跌停、EPS、股息率、均线(MA5/10/20/30/60)、ETF IOPV/溢价率 |
+| **图表** | 分时图（量价+均价线）、日K/周K/月K 蜡烛图（MA5/10/20叠加），支持手势缩放与十字光标 |
+| **盘中自动刷新** | 交易日 09:30-15:00 每1秒刷新，非交易时段每3秒 |
+| **盈亏计算** | 录入买入价和日期，实时显示浮动盈亏 |
+| **AI分析 (DeepSeek)** | 自动注入实时行情+K线+分时+大盘指数上下文，流式Markdown渲染，自动识别交易信号 |
+| **策略管理** | 创建/暂停/删除价格、均线、成交量、涨跌幅条件策略，定时检测并推送通知 |
+| **策略告警** | 每日 09:50、14:45 定时检测策略条件，匹配时推送系统通知（4小时去重） |
 
-实时展示以下指标，一目了然：
+## 使用方法
 
-- **买入以来最高价** — 防守线计算的基准
-- **当前防守线** — 跌破即触发动态止盈（仅梯度模式显示）
-- **绝对止损线** — 硬止损保底价格
-- **当前账面收益** — 浮动盈亏百分比
-- **距最高点回撤** — 当前回撤幅度
-- **距防守线空间** — 现价到防守线的安全距离
-- **有效回撤容忍** — 当前生效的跟踪比例
-- **梯度收紧状态** — 显示是否启用及当前收紧系数
-
-### 记录与追溯
-
-- **价格记录**：每次轮询的价格快照存入 JSON，事后可完整回溯监控过程
-- **交易记录**：离场时自动生成 CSV 记录（时间、股票、买卖价格、盈利%、离场原因）
-- **流水日志**：所有监控事件追加到 TXT 日志，带精确时间戳
-- **交易预设**：常用参数保存为预设，一键加载复用
-
-### 状态恢复
-
-应用退出或重启后，监控状态自动从 SharedPreferences 恢复，无需重新配置。
-
----
-
-## AI 多维技术分析（DeepSeek）
-
-- **7 维评分体系**：趋势判断、关键价位、技术信号、短线预测、操作建议、风险提示、止盈建议
-- **自动数据采集**：获取K线数据 + 个股新闻 + 政策要闻，构建完整分析上下文
-- **上下文感知**：包含买入价、买入日期、止损止盈参数，分析更精准
-- **对话式追问**：支持多轮对话，持续深入分析
-- **Markdown 渲染**：AI 回复支持 Markdown 格式展示
-
----
-
-## 全市场股票搜索
-
-- 内置 5000+ A股股票数据库（CSV 文件，支持模糊搜索 + 自动补全）
-- 支持 ETF 过滤
-- 搜索结果快速发起 AI 分析或添加监控
-
----
-
-## 技术架构
-
-### 技术栈
-
-| 层级 | 技术选型 |
-|---|---|
-| 语言 | Java 11 |
-| 架构 | MVVM（ViewModel + LiveData + Repository） |
-| UI | XML 布局 · Material Design Components · FragmentTransaction 导航 |
-| 网络 | OkHttp 4.12.0（DNS 缓存 + 指数退避重试 + 日志拦截器） |
-| 序列化 | Gson 2.10.1 |
-| Markdown | commonmark 0.21.0 |
-| 数据持久化 | SharedPreferences（设置） · CSV（股票列表、交易记录） · JSON（价格历史） |
-| 最低 SDK | Android 7.0 (API 24) |
-| 目标 SDK | Android 16 (API 36) |
-
-### 网络层优化
-
-- **多源容错**：实时行情 新浪 → 腾讯 → 东方财富 三级降级；K线 腾讯 → 东方财富 两级降级
-- **指数退避重试**：500/429/408 状态码及连接超时自动重试，最多 3 次
-- **DNS 缓存**：LRU 策略缓存最多 64 条 DNS 记录，TTL 5 分钟
-- **连接池**：8 连接 / 5 分钟保活
-- **数据缓存**：K线 & 实时行情内存缓存（TTL 机制）
-- **请求去重**：并发相同请求合并为单次网络调用
-
-### 状态管理
-
-- UI 状态通过不可变 POJO（Builder 模式）+ LiveData 驱动
-- 所有交易监控状态持久化到 SharedPreferences，应用重启后自动恢复
-- 退出交易自动记录到 CSV，保留完整交易历史
-
----
-
-## 快速开始
-
-### 前置要求
-
-- Android Studio Hedgehog (2024.1.1+) 或更高版本
-- JDK 11+
-- Android SDK 36
-
-### 构建
+### 1. 构建安装
 
 ```bash
-# 克隆项目
-git clone https://github.com/your-username/stock-smartphone.git
-
-# 命令行构建
-./gradlew assembleDebug        # macOS / Linux
-gradlew.bat assembleDebug      # Windows
+# 编译 APK 并安装到设备
+gradlew.bat assembleDebug && adb install -r app\build\outputs\apk\debug\app-debug.apk
 ```
 
-### 配置 API Key
+### 2. 自选股管理
 
-1. 前往 [DeepSeek 开放平台](https://platform.deepseek.com) 注册并获取 API Key
-2. 打开 App → 设置页面 → 输入 API Key → 选择模型 → 保存
+- 主页点击 **+** 按钮进入搜索页
+- 输入股票代码或名称搜索（500ms 防抖）
+- 点击结果右侧 **+** 添加到自选股，或点击行进入详情
+- 长按自选股列表项可删除
+
+### 3. 个股详情
+
+- 点击自选股进入详情页
+- 顶部显示实时价格（红涨绿跌）
+- **分时图** 标签：当日盘中走势
+- **5日** 标签：最近5天日K线
+- **20日** 标签：最近20天日K线
+- 输入买入价格可计算浮盈/浮亏
+
+### 4. AI 分析
+
+- 在个股详情页点击 **AI分析** 进入聊天页
+- 首次使用需配置 DeepSeek API Key（在聊天页菜单中设置）
+- 系统自动将股票实时数据、K线、大盘指数注入上下文
+- 支持自定义系统提示词、提示词模板
+- AI 回复自动检测交易信号（加仓/减仓/止盈/止损/入场/退场），点击 **保存策略** 一键创建策略
+
+### 5. 策略管理
+
+- 主页点击 **策略管理** 进入策略列表
+- 支持的条件类型：
+  - 价格高于/低于指定值
+  - 涨跌幅超过指定百分比
+  - MA金叉/死叉（MA5/10/20/30/60）
+  - 量比区间
+  - 指定目标价、止损价
+- 策略可暂停/恢复/删除
+- 每日 09:50 和 14:45 自动检测，满足条件时推送通知
 
 ---
 
-## 使用指南
+## 股票信息 API
 
-### 1. 交易监控
-1. 搜索并选择监控股票
-2. 输入买入价、买入日期、止损比例、止盈目标等参数
-3. 点击「开始监控」— 引擎自动计算防守线和止损线
-4. 实时查看：最高价、防守线、硬止损线、盈利%、回撤%、距防守线距离、有效跟踪比例
-5. 价格历史记录自动保存，交易离场后生成完整记录
+### 数据源架构
 
-### 2. AI 分析
-1. 选择或搜索股票
-2. 点击「开始分析」— 自动获取 K 线数据、个股新闻、政策要闻
-3. 查看 AI 7 维评分结果
-4. 通过聊天框追问技术细节
+| 数据源 | 用途 | 优先级 |
+|--------|------|--------|
+| **新浪 (Sina)** | 实时行情（主） | 1 |
+| **腾讯 (Tencent)** | 实时行情（备1）、K线（主） | 2 |
+| **东方财富 (EastMoney)** | 实时行情（备2）、K线（备）、分时线、股票列表、ETF列表、搜索 | 3 |
+| **DeepSeek** | AI 对话分析 | — |
+| **新浪财经** | 财经新闻 | — |
 
-### 3. 搜索与管理
-- 搜索页直接输入股票代码/名称/拼音首字母，实时模糊匹配
-- 选中股票后快速发起 AI 分析或开始监控
-- 首页管理交易预设，一键加载常用配置
+所有数据通过 **OkHttp** 异步请求获取，内置自动重试（指数退避 1s/2s/4s，最多3次）和 DNS 缓存。
+
+### 缓存策略
+
+| 数据类型 | TTL | 最大条目 |
+|---------|-----|---------|
+| 实时行情 | 3秒 | 50 |
+| K线数据 | 5分钟 | 30 |
+| 分时数据 | 1分钟 | 20 |
 
 ---
 
-## 项目结构
+## 数据模型
 
+### RealtimeQuote — 实时行情
+
+通过 `EastMoneyApi.fetchRealtime(code, callback)` 获取。
+
+| 字段 | 类型 | 含义 | EastMoney字段 |
+|------|------|------|-------------|
+| name | String | 股票名称 | f58 |
+| code | String | 股票代码 | — |
+| price | double | 最新价 | f43/100 |
+| open | double | 开盘价 | f46/100 |
+| high | double | 最高价 | f44/100 |
+| low | double | 最低价 | f45/100 |
+| preClose | double | 昨收价 | f60/100 |
+| volume | double | 成交量（股） | f47 |
+| amount | double | 成交额（元） | f48 |
+| pctChg | double | 涨跌幅（%） | f170 |
+| change | double | 涨跌额 | f169/100 |
+| pe | double | 静态市盈率 | f162 |
+| peTTM | double | 市盈率TTM | f163 |
+| pb | double | 市净率 | f167 |
+| turnoverRate | double | 换手率（%） | f168 |
+| volumeRatio | double | 量比 | f50/100 |
+| totalMarketCap | double | 总市值 | f116 |
+| circulatingMarketCap | double | 流通市值 | f117 |
+| limitUp | double | 涨停价 | f51/100 |
+| limitDown | double | 跌停价 | f52/100 |
+| eps | double | 每股收益 | f228 |
+| dividendYield | double | 股息率（%） | f188 |
+| ma5 | double | 5日均价 | f172 |
+| ma10 | double | 10日均价 | f173 |
+| ma20 | double | 20日均价 | f174 |
+| ma30 | double | 30日均价 | f175 |
+| ma60 | double | 60日均价 | f171 |
+| iopv | double | IOPV（仅ETF） | f289 |
+| premiumRate | double | 溢价率（仅ETF） | — |
+
+**数据来源优先级**: Sina → Tencent → EastMoney（按返回结果降级）
+
+---
+
+### KlineData — K线数据
+
+通过 `EastMoneyApi.fetchKline(code, days, callback)` 或 `fetchKlineWithPeriod(code, count, klt, fqt, callback)` 获取。
+
+| 字段 | 类型 | 含义 |
+|------|------|------|
+| date | String | 日期/时间 |
+| open | double | 开盘价 |
+| close | double | 收盘价 |
+| high | double | 最高价 |
+| low | double | 最低价 |
+| volume | double | 成交量（股） |
+| amount | double | 成交额（元） |
+| amplitude | double | 振幅（%） |
+| pctChg | double | 涨跌幅（%） |
+| change | double | 涨跌额 |
+| turnover | double | 换手率（%，仅EastMoney） |
+
+#### 多周期参数
+
+| 参数 | 说明 |
+|------|------|
+| **count** | 数据条数 |
+| **klt** | K线周期: 1=1分钟, 5=5分钟, 15=15分钟, 30=30分钟, 60=60分钟, **101=日线**, 102=周线, 103=月线 |
+| **fqt** | 复权类型: 0=不复权, **1=前复权**, 2=后复权 |
+
+**数据来源优先级**: Tencent（主）→ EastMoney（备）
+
+---
+
+### MinuteLineData — 分时数据
+
+通过 `EastMoneyApi.fetchMinuteLine(code, callback)` 或 `fetchMinuteLineDays(code, ndays, callback)` 获取。
+
+| 字段 | 类型 | 含义 |
+|------|------|------|
+| time | String | 时间 |
+| price | double | 当前价 |
+| avgPrice | double | 均价 |
+| volume | double | 成交量（股） |
+| amount | double | 成交额（万元） |
+| preClose | double | 昨收价 |
+| pctChg | double | 实时涨跌幅（计算值） |
+
+**参数**: `ndays` — 最近几天（默认1），可获取多日连续分时
+
+**数据来源**: EastMoney `trends2` 接口
+
+---
+
+### Stock — 股票/ETF基本信息
+
+通过 `fetchStockList` / `fetchEtfList` / `searchSuggest` 获取。
+
+| 字段 | 类型 | 含义 |
+|------|------|------|
+| code | String | 证券代码 |
+| name | String | 证券名称 |
+| type | String | 类型: "stock" / "etf" |
+| isEtf() | boolean | 是否为ETF |
+
+---
+
+## API 接口详情
+
+### 东方财富 API 端点
+
+| 端点 | 用途 |
+|------|------|
+| `https://hq.sinajs.cn/list={code}` | 新浪实时行情（主） |
+| `https://push2.eastmoney.com/api/qt/stock/get?secid={code}&fields=...` | 东方财富实时行情 + 扩展字段（PE/PB/市值/均线等） |
+| `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid={code}&klt={period}&fqt={fq}&fields1=...&fields2=...` | 多周期K线（单次请求） |
+| `https://push2.eastmoney.com/api/qt/stock/trends2/get?secid={code}&ndays={n}&fields1=...&fields2=...` | 分时线（支持多日） |
+| `https://searchadapter.eastmoney.com/api/suggest/get?type=14&input={kw}&count=20` | 搜索建议 |
+| `http://vip.stock.finance.sina.com.cn/.../Market_Center.getHQNodeData?node=hs_a&page={p}&num=80` | 全量A股列表（分页） |
+| `http://vip.stock.finance.sina.com.cn/.../Market_Center.getHQNodeData?node=etf_hq_fund&page={p}&num=80` | 全量ETF列表（分页） |
+
+### 腾讯 API 端点
+
+| 端点 | 用途 |
+|------|------|
+| `http://qt.gtimg.cn/q={code}` | 实时行情 |
+| `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={code},day,,,{days},qfq` | 日K线（前复权） |
+
+### DeepSeek AI API
+
+| 端点 | 用途 |
+|------|------|
+| `https://api.deepseek.com/chat/completions` | 对话补全（非流式 + SSE流式） |
+| 认证 | `Authorization: Bearer {api_key}` |
+| 默认模型 | `deepseek-v4-pro` |
+| 备选模型 | `deepseek-v4-flash`, `deepseek-chat`, `deepseek-reasoner` |
+
+### 新浪财经新闻 API
+
+| 端点 | 用途 |
+|------|------|
+| `https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2509&num={count}&page=1` | 财经新闻滚动列表 |
+
+---
+
+## EastMoneyApi 方法一览
+
+| 方法 | 功能 | 异步 |
+|------|------|------|
+| `fetchRealtime(code, callback)` | 获取实时行情+完整基本面 | 是 |
+| `fetchLatestCloseSync(code)` | 同步获取最新价 | 同步 |
+| `fetchKline(code, days, callback)` | 获取日K线数据 | 是 |
+| `fetchKlineWithPeriod(code, count, klt, fqt, callback)` | 获取多周期K线 | 是 |
+| `fetchMinuteLine(code, callback)` | 获取当日分时线 | 是 |
+| `fetchMinuteLineDays(code, ndays, callback)` | 获取多日分时线 | 是 |
+| `calculateMA(klines, period, callback)` | 计算移动平均线 | 是 |
+| `calculateVolumeRatio(dailyKlines, todayVolume, callback)` | 计算量比 | 是 |
+| `fetchStockList(callback)` | 获取全部A股列表 | 是 |
+| `fetchEtfList(callback)` | 获取全部ETF列表 | 是 |
+| `searchSuggest(keyword, callback)` | 搜索股票/ETF建议 | 是 |
+
+### TencentApi
+
+| 方法 | 功能 |
+|------|------|
+| `fetchKline(code, days, callback)` | K线（供EastMoneyApi内部调用） |
+| `fetchRealtime(code, callback)` | 实时行情（供EastMoneyApi内部调用） |
+| `fetchLatestCloseSync(code)` | 同步最新价 |
+
+### DeepSeekApi
+
+| 方法 | 功能 |
+|------|------|
+| `chat(messages, model, callback)` | 非流式对话 |
+| `chatStream(messages, model, callback)` | SSE流式对话 |
+
+### StockNewsApi
+
+| 方法 | 功能 |
+|------|------|
+| `fetchStockNews(stockName, stockCode, todayOnly, count, callback)` | 获取个股相关新闻 |
+| `fetchMarketNews(count, callback)` | 获取市场整体新闻 |
+
+### StockDataCache
+
+| 方法 | 功能 |
+|------|------|
+| `getQuote(code)` | 获取缓存行情 |
+| `putQuote(code, quote)` | 写入缓存行情 |
+| `getKline(code, cacheKey)` | 获取缓存K线 |
+| `putKline(code, cacheKey, data)` | 写入缓存K线 |
+| `getMinuteLine(code, cacheKey)` | 获取缓存分时 |
+| `putMinuteLine(code, cacheKey, data)` | 写入缓存分时 |
+| `clear()` | 清空所有缓存 |
+
+---
+
+## 数据验证与调试
+
+所有API类均使用 `android.util.Log` 输出以下级别的日志：
+
+- **Log.v / Log.d**: 请求URL、缓存命中/未命中、返回数据摘要（前200~300字符）
+- **Log.i**: 请求成功、返回条目数、核心摘要字段
+- **Log.w**: 降级切换、数据为空、非严重异常
+- **Log.e**: 网络失败、解析异常、请求异常（含堆栈）
+
+日志 Tag 前缀：
+
+| Tag | 范围 |
+|-----|------|
+| `EastMoneyApi` | 东方财富/新浪接口 |
+| `TencentApi` | 腾讯接口 |
+| `StockDataCache` | 缓存操作 |
+| `HttpClientFactory` | 网络请求层 |
+| `DeepSeekApi` | AI对话 |
+| `StockNewsApi` | 财经新闻 |
+| `DebugLogger` | 调试日志（写入文件） |
+
+---
+
+## 使用示例
+
+```java
+// 1. 获取实时行情（含量比、换手率、均线、PE等完整字段）
+EastMoneyApi.fetchRealtime("000001", result -> {
+    if (result.getPrice() > 0) {
+        Log.d("Demo", "最新价: " + result.getPrice());
+        Log.d("Demo", "涨跌幅: " + result.getPctChg() + "%");
+        Log.d("Demo", "量比: " + result.getVolumeRatio());
+        Log.d("Demo", "换手率: " + result.getTurnoverRate() + "%");
+        Log.d("Demo", "市盈率: " + result.getPe());
+        Log.d("Demo", "5日均线: " + result.getMa5());
+        Log.d("Demo", "总市值: " + result.getTotalMarketCap());
+    }
+});
+
+// 2. 获取日K线（最近120天）
+EastMoneyApi.fetchKline("000001", 120, klines -> {
+    for (KlineData k : klines) {
+        Log.d("Demo", k.getDate() + " O:" + k.getOpen()
+                + " H:" + k.getHigh() + " L:" + k.getLow()
+                + " C:" + k.getClose() + " V:" + k.getVolume());
+    }
+});
+
+// 3. 获取30分钟K线（前复权）
+EastMoneyApi.fetchKlineWithPeriod("000001", 100, 30, 1, klines -> {
+    Log.d("Demo", "30分钟K线共 " + klines.size() + " 条");
+});
+
+// 4. 获取当日分时线
+EastMoneyApi.fetchMinuteLine("000001", minuteData -> {
+    for (MinuteLineData m : minuteData) {
+        Log.d("Demo", m.getTime() + " 价:" + m.getPrice()
+                + " 量:" + m.getVolume() + " 均价:" + m.getAvgPrice());
+    }
+});
+
+// 5. 计算MA5
+EastMoneyApi.calculateMA(klines, 5, maValues -> {
+    double latestMA5 = maValues[maValues.length - 1];
+    Log.d("Demo", "最新MA5: " + latestMA5);
+});
+
+// 6. 获取全部A股列表
+EastMoneyApi.fetchStockList(stocks -> {
+    Log.d("Demo", "共 " + stocks.size() + " 只股票");
+});
+
+// 7. 获取全部ETF列表
+EastMoneyApi.fetchEtfList(etfs -> {
+    Log.d("Demo", "共 " + etfs.size() + " 只ETF");
+});
+
+// 8. 搜索
+EastMoneyApi.searchSuggest("茅台", results -> {
+    for (Stock s : results) {
+        Log.d("Demo", s.getCode() + " " + s.getName());
+    }
+});
+
+// 9. DeepSeek AI 对话（流式）
+List<ChatMessage> messages = new ArrayList<>();
+messages.add(new ChatMessage("system", "你是一个股票分析专家"));
+messages.add(new ChatMessage("user", "分析一下000001平安银行"));
+DeepSeekApi.getInstance().chatStream(messages, "deepseek-chat",
+    new DeepSeekApi.StreamCallback() {
+        @Override public void onToken(String token) { /* 增量文本 */ }
+        @Override public void onComplete(String fullContent) { /* 完成 */ }
+        @Override public void onError(String error) { /* 错误 */ }
+    });
+
+// 10. 获取财经新闻
+StockNewsApi.getInstance().fetchStockNews("平安银行", "000001", true, 20, news -> {
+    for (Map<String, String> item : news) {
+        Log.d("Demo", item.get("title") + " - " + item.get("url"));
+    }
+});
 ```
-app/src/main/java/com/hong/xin/stock/
-├── MainActivity.java                 # 主界面 · 底部导航
-├── StockApplication.java             # Application 入口
-├── data/
-│   ├── api/
-│   │   ├── EastMoneyApi.java         # 东方财富 API（实时行情/K线/搜索）
-│   │   ├── TencentApi.java           # 腾讯证券 API（备用数据源）
-│   │   ├── DeepSeekApi.java          # DeepSeek AI 对话接口
-│   │   ├── StockNewsApi.java         # 个股新闻 & 政策要闻
-│   │   ├── StockDataCache.java       # 内存缓存（K线/行情 TTL）
-│   │   └── HttpClientFactory.java    # OkHttp 工厂（重试/DNS缓存/日志）
-│   ├── model/
-│   │   ├── Stock.java                # 股票实体
-│   │   ├── RealtimeQuote.java        # 实时行情（Builder 模式）
-│   │   ├── KlineData.java            # 日K线数据
-│   │   ├── TradeRecord.java          # 交易离场记录
-│   │   ├── TradePreset.java          # 交易预设
-│   │   └── PriceRecord.java          # 价格监控快照
-│   └── repository/
-│       ├── StockRepository.java      # 股票搜索（CSV 资产文件）
-│       ├── TradeRepository.java      # 交易记录持久化（CSV）
-│       └── PriceHistoryRepository.java # 价格历史持久化（JSON）
-├── domain/
-│   └── TrailingStopEngine.java       # ★ 核心：跟踪止盈止损策略引擎
-├── ui/
-│   ├── home/
-│   │   └── HomeFragment.java         # 首页 · 预设管理
-│   ├── trade/
-│   │   ├── TradeFragment.java        # 交易监控面板
-│   │   ├── TradeViewModel.java       # 交易逻辑（MVVM）
-│   │   ├── TradeUiState.java         # UI 状态
-│   │   ├── HistoryFragment.java      # 交易历史
-│   │   ├── HistoryAdapter.java       # 历史记录适配器
-│   │   └── PriceHistoryAdapter.java  # 价格历史适配器
-│   ├── analysis/
-│   │   ├── AnalysisActivity.java     # AI 分析页面
-│   │   ├── AnalysisInputActivity.java # 分析输入页面
-│   │   ├── AnalysisFragment.java     # AI 分析对话页面
-│   │   ├── AiAnalysisViewModel.java  # AI 分析逻辑
-│   │   └── AiAnalysisState.java      # 分析状态
-│   ├── search/
-│   │   ├── StockSearchFragment.java  # 股票搜索页面
-│   │   ├── StockSearchViewModel.java # 搜索逻辑
-│   │   └── StockSearchUiState.java   # 搜索状态
-│   ├── settings/
-│   │   └── SettingsFragment.java     # 设置页面
-│   └── widget/
-│       └── StockFilterAdapter.java   # 股票自动补全适配器
-└── util/
-    ├── SettingsManager.java          # SharedPreferences 封装
-    └── DebugLogger.java              # 文件调试日志
-```
 
 ---
 
-## 许可
+## 项目配置
 
-本项目基于 MIT 许可证开源，详见 [LICENSE](LICENSE) 文件。
-
----
-
-## 免责声明
-
-本工具仅供学习和个人参考，不构成任何投资建议。股票交易有风险，投资需谨慎。使用本工具产生的任何交易决策及结果由使用者自行承担。
+| 项 | 值 |
+|----|-----|
+| **应用ID** | `com.hong.xin.stock` |
+| **compileSdk** | 36 |
+| **minSdk** | 24 (Android 7.0) |
+| **targetSdk** | 36 |
+| **版本** | 1.0 (versionCode: 1) |
+| **Java** | 11 |
+| **权限** | `android.permission.INTERNET` |
+| **HTTP库** | OkHttp 4.12.0 |
+| **JSON库** | Gson 2.10.1 |
+| **Markdown渲染** | Markwon 4.6.2 (core + tables + strikethrough) |
