@@ -236,8 +236,9 @@ public class DeepSeekChatActivity extends AppCompatActivity {
 
     private String buildGeneratedPrompt() {
         StringBuilder sb = new StringBuilder();
-        sb.append("你是一个专业的A股数据以及交易策略超级分析师。请根据以下行情数据并结合你的知识进行分析。优先给出结论再展开具体的止盈止损，加仓减仓，入场清仓，对应的策略。\n");
+        sb.append("你是一个专业的A股数据以及交易策略超级分析师。请根据以下行情数据并结合你的知识进行分析。\n");
         sb.append("分析可以包括：技术面、基本面、行业趋势、风险提示、市场情绪、主力挖坑策略，当前股票和大盘的联系等。\n");
+        sb.append("优先给出结论再展开具体的止盈止损，加仓减仓，入场清仓，对应的策略价格数值及其表格。\n");
         sb.append("回答请使用中文，要求：精简扼要，重点突出，避免冗余。\n\n");
         sb.append(buildQuoteSection());
         sb.append(buildKlineSection());
@@ -897,9 +898,20 @@ public class DeepSeekChatActivity extends AppCompatActivity {
         if (m.find()) return m.group(1);
 
         p = java.util.regex.Pattern.compile(
-            keyword + "价?\\s*(?:为|到|至|在|约|≈|~|附近)?\\s*(\\d+\\.?\\d{1,3})");
+            keyword + "价?\\s*(?:为|到|至|在|约|≈|~|附近)?\\s*(\\d+\\.?\\d{1,3})(?!\\s*(?:日|均|周|月))");
         m = p.matcher(text);
-        if (m.find()) return m.group(1);
+        while (m.find()) {
+            String num = m.group(1);
+            if (num.indexOf('.') < 0) {
+                try {
+                    int val = Integer.parseInt(num);
+                    if (val >= 5 && val <= 250) {
+                        continue;
+                    }
+                } catch (NumberFormatException ignored) {}
+            }
+            return num;
+        }
 
         return "";
     }
