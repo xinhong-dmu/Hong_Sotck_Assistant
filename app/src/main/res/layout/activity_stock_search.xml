@@ -2,42 +2,65 @@
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/background">
 
-    <EditText
-        android:id="@+id/search_edit"
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/search_card"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_margin="16dp"
-        android:hint="输入股票代码或名称搜索"
-        android:inputType="text"
-        android:maxLines="1"
-        android:padding="12dp"
-        android:background="@android:drawable/editbox_background"
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginTop="12dp"
+        app:cardElevation="2dp"
+        app:cardCornerRadius="12dp"
+        app:cardBackgroundColor="@color/card_bg"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="12dp">
+
+            <EditText
+                android:id="@+id/search_edit"
+                style="@style/InputField"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginVertical="4dp"
+                android:hint="输入股票代码或名称搜索"
+                android:inputType="text"
+                android:maxLines="1"
+                android:textSize="15sp"
+                android:background="@android:color/transparent" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recycler_view"
         android:layout_width="0dp"
         android:layout_height="0dp"
+        android:layout_marginTop="8dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/search_edit" />
+        app:layout_constraintTop_toBottomOf="@id/search_card" />
 
     <TextView
         android:id="@+id/empty_hint"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="输入关键词搜索股票"
-        android:textColor="#999999"
-        android:textSize="16sp"
+        android:textColor="@color/text_hint"
+        android:textSize="15sp"
         android:visibility="visible"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/search_edit" />
+        app:layout_constraintTop_toBottomOf="@id/search_card" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

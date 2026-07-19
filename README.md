@@ -4,19 +4,24 @@
 
 ```
 com.hong.xin.stock/
-├── MainActivity.java              # 主页：自选股列表
-├── StockDetailActivity.java       # 个股详情：实时行情 + K线/分时图 + 盈亏计算
-├── StockSearchActivity.java       # 股票/ETF搜索
-├── DeepSeekChatActivity.java      # AI智能分析 (DeepSeek)
-├── StrategyListActivity.java      # 交易策略管理
-├── MinuteChartView.java           # 自定义分时图控件
-├── KlineChartView.java            # 自定义K线图控件
-├── StrategyAlarmScheduler.java    # 策略告警定时任务
+├── MainActivity.java              # 主页入口 (ViewPager2 + BottomNavigationView)
+├── HomeFragment.java              # 行情首页：自选股列表 / 持仓列表切换
+├── SettingsFragment.java          # 设置页：API Key、模型选择、提示词、模板管理
+├── StockDetailActivity.java       # 个股详情：实时行情 + 分时图/K线图 + 盈亏计算
+├── StockSearchActivity.java       # 股票/ETF搜索（500ms防抖）
+├── DeepSeekChatActivity.java      # AI单股分析对话 (DeepSeek)
+├── PositionAnalysisFragment.java  # AI持仓组合分析（多股综合诊断）
+├── StrategyListActivity.java      # 交易策略管理（CRUD）
+├── StrategyAlarmScheduler.java    # 策略告警定时任务 (AlarmManager)
 ├── StrategyCheckReceiver.java     # 策略条件检测广播接收器
 ├── StrategyNotificationHelper.java # 策略触发推送通知
-├── ChatAdapter.java               # 聊天消息适配器
+├── MinuteChartView.java           # 自定义分时图控件
+├── KlineChartView.java            # 自定义K线图控件 (蜡烛图 + 十字光标 + 手势缩放)
+├── ChatAdapter.java               # 聊天消息适配器 (RecyclerView)
 ├── SearchResultAdapter.java       # 搜索结果适配器
 ├── SelectedStockAdapter.java      # 自选股列表适配器
+├── PositionHoldingAdapter.java    # 持仓列表适配器（实时价+浮盈）
+├── PlusMenuAdapter.java           # 弹出菜单适配器
 ├── data/
 │   ├── SelectedStockManager.java  # 自选股管理 (SharedPreferences)
 │   ├── StrategyManager.java       # 策略管理 (SharedPreferences)
@@ -27,10 +32,10 @@ com.hong.xin.stock/
 │   ├── api/
 │   │   ├── EastMoneyApi.java      # 主数据接口 (新浪→腾讯→东方财富多源降级)
 │   │   ├── TencentApi.java        # 腾讯数据源
-│   │   ├── DeepSeekApi.java       # DeepSeek AI接口
-│   │   ├── StockNewsApi.java      # 新浪财经新闻
-│   │   ├── StockDataCache.java    # 内存LRU缓存
-│   │   └── HttpClientFactory.java # OkHttp客户端工厂
+│   │   ├── DeepSeekApi.java       # DeepSeek AI接口 (流式SSE)
+│   │   ├── StockNewsApi.java      # 财经新闻接口 (东方财富+新浪)
+│   │   ├── StockDataCache.java    # 内存LRU缓存 (TTL过期)
+│   │   └── HttpClientFactory.java # OkHttp客户端工厂 (重试+日志+DNS缓存)
 │   └── model/
 │       ├── RealtimeQuote.java     # 实时行情（不可变，Builder模式）
 │       ├── KlineData.java         # K线数据
@@ -40,7 +45,7 @@ com.hong.xin.stock/
 │       ├── ChatMessage.java       # 聊天消息
 │       └── PurchaseRecord.java    # 买入记录
 └── util/
-    └── DebugLogger.java           # 调试日志
+    └── DebugLogger.java           # 调试日志（写入文件）
 ```
 
 ## 核心功能
@@ -48,13 +53,16 @@ com.hong.xin.stock/
 | 模块 | 功能说明 |
 |------|---------|
 | **自选股** | 添加/删除 A股 & ETF，持久化存储 |
+| **持仓管理** | 显示所有持仓股票的实时价、成本、浮动盈亏，支持按成本排序 |
 | **个股详情** | 实时价、开高低收、PE/PB、市值、换手率、量比、涨跌停、EPS、股息率、均线(MA5/10/20/30/60)、ETF IOPV/溢价率 |
-| **图表** | 分时图（量价+均价线）、日K/周K/月K 蜡烛图（MA5/10/20叠加），支持手势缩放与十字光标 |
+| **图表** | 分时图（量价+均价线+买入价线）、5日/20日K线蜡烛图（MA5/10/20叠加），支持手势缩放与十字光标 |
 | **盘中自动刷新** | 交易日 09:30-15:00 每1秒刷新，非交易时段每3秒 |
-| **盈亏计算** | 录入买入价和日期，实时显示浮动盈亏 |
-| **AI分析 (DeepSeek)** | 自动注入实时行情+K线+分时+大盘指数上下文，流式Markdown渲染，自动识别交易信号 |
-| **策略管理** | 创建/暂停/删除价格、均线、成交量、涨跌幅条件策略，定时检测并推送通知 |
+| **盈亏计算** | 录入买入价和日期，实时显示浮动盈亏，支持多条记录加权平均 |
+| **AI单股分析 (DeepSeek)** | 自动注入实时行情+K线+分时+大盘指数上下文，流式Markdown渲染，自动识别交易信号，支持新闻查询 |
+| **AI持仓组合分析** | 综合诊断所有持仓股票，提供组合层面的仓位分配、风险分散等建议 |
+| **策略管理** | 创建/暂停/删除价格、均线、成交量、涨跌幅条件策略，支持目标价/止损价 |
 | **策略告警** | 每日 09:50、14:45 定时检测策略条件，匹配时推送系统通知（4小时去重） |
+| **设置** | DeepSeek API Key配置、模型选择、全局提示词编辑、对话模板管理 |
 
 ## 使用方法
 
@@ -62,36 +70,40 @@ com.hong.xin.stock/
 
 ```bash
 # 编译 APK 并安装到设备
-gradlew.bat assembleDebug && adb install -r app\build\outputs\apk\debug\app-debug.apk
+gradlew.bat assembleDebug; if ($?) { adb install -r app\build\outputs\apk\debug\app-debug.apk }
 ```
 
-### 2. 自选股管理
+### 2. 自选股与持仓
 
-- 主页点击 **+** 按钮进入搜索页
-- 输入股票代码或名称搜索（500ms 防抖）
-- 点击结果右侧 **+** 添加到自选股，或点击行进入详情
-- 长按自选股列表项可删除
+- 主页底部导航切换 **行情** / **设置** 两个 Tab
+- 行情页顶部可切换 **自选股** / **持仓** 两个子视图：
+  - **自选股视图**：显示已添加的关注股票，点击进入详情，点击 X 删除
+  - **持仓视图**：显示有买入记录的股票，自动拉取实时价并计算浮动盈亏
+- 点击右下角 **+** 按钮进入搜索页
+- 输入股票代码或名称搜索（500ms 防抖），点击 **+** 添加自选
 
 ### 3. 个股详情
 
 - 点击自选股进入详情页
 - 顶部显示实时价格（红涨绿跌）
-- **分时图** 标签：当日盘中走势
-- **5日** 标签：最近5天日K线
-- **20日** 标签：最近20天日K线
-- 输入买入价格可计算浮盈/浮亏
+- **分时图** 标签：当日盘中走势（带均价线和买入价线）
+- **5日** 标签：5日内 5 分钟 K 线
+- **20日** 标签：20日内 5 分钟 K 线
+- 支持手势缩放和十字光标查看 K 线细节
+- 录入买入价格和日期可计算浮盈/浮亏，支持多条记录加权平均
 
 ### 4. AI 分析
 
-- 在个股详情页点击 **AI分析** 进入聊天页
-- 首次使用需配置 DeepSeek API Key（在聊天页菜单中设置）
+- 在个股详情页点击 **AI分析** 进入单股聊天页
+- 在持仓视图点击 **AI持仓分析** 可对所有持仓进行组合层面分析
+- 首次使用需在 **设置** 页配置 DeepSeek API Key
 - 系统自动将股票实时数据、K线、大盘指数注入上下文
 - 支持自定义系统提示词、提示词模板
 - AI 回复自动检测交易信号（加仓/减仓/止盈/止损/入场/退场），点击 **保存策略** 一键创建策略
 
 ### 5. 策略管理
 
-- 主页点击 **策略管理** 进入策略列表
+- 设置页点击 **策略管理** 入口进入策略列表
 - 支持的条件类型：
   - 价格高于/低于指定值
   - 涨跌幅超过指定百分比
@@ -99,7 +111,7 @@ gradlew.bat assembleDebug && adb install -r app\build\outputs\apk\debug\app-debu
   - 量比区间
   - 指定目标价、止损价
 - 策略可暂停/恢复/删除
-- 每日 09:50 和 14:45 自动检测，满足条件时推送通知
+- 每日 09:50 和 14:45 自动检测，满足条件时推送通知（4小时去重）
 
 ---
 

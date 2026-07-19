@@ -1,5 +1,6 @@
 package com.hong.xin.stock;
 
+import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.content.Intent;
 import android.graphics.Color;
@@ -8,6 +9,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -44,15 +46,12 @@ public class StockDetailActivity extends AppCompatActivity {
     private TextView tabIntraday, tab5, tab20;
     private MinuteChartView chartIntraday, chartView;
 
-    private EditText etPurchasePrice, etPurchaseDate;
-    private TextView btnSavePurchase, btnDeletePurchase, btnAddStock;
+    private TextView btnAddStock, btnAddTradeRecord, btnAiAnalysisHeader;
     private LinearLayout purchaseInfoLayout;
-    private TextView tvCostPrice, tvProfitLoss;
-
-    private TextView btnAiAnalysis;
+    private LinearLayout purchaseRecordsContainer;
+    private TextView tvAvgCost, tvProfitLoss;
 
     private PurchaseRecordManager purchaseRecordManager;
-    private PurchaseRecord currentRecord;
 
     private final Handler refreshHandler = new Handler(Looper.getMainLooper());
     private Runnable refreshTask;
@@ -101,16 +100,13 @@ public class StockDetailActivity extends AppCompatActivity {
         chartIntraday = findViewById(R.id.chart_intraday);
         chartView = findViewById(R.id.chart_view);
 
-        etPurchasePrice = findViewById(R.id.et_purchase_price);
-        etPurchaseDate = findViewById(R.id.et_purchase_date);
-        btnSavePurchase = findViewById(R.id.btn_save_purchase);
-        btnDeletePurchase = findViewById(R.id.btn_delete_purchase);
         btnAddStock = findViewById(R.id.btn_add_stock);
+        btnAddTradeRecord = findViewById(R.id.btn_add_trade_record);
+        btnAiAnalysisHeader = findViewById(R.id.btn_ai_analysis_header);
         purchaseInfoLayout = findViewById(R.id.purchase_info_layout);
-        tvCostPrice = findViewById(R.id.tv_cost_price);
+        purchaseRecordsContainer = findViewById(R.id.purchase_records_container);
+        tvAvgCost = findViewById(R.id.tv_avg_cost);
         tvProfitLoss = findViewById(R.id.tv_profit_loss);
-
-        btnAiAnalysis = findViewById(R.id.btn_ai_analysis);
 
         chartView.setVisibility(View.GONE);
         updateAddStockButton();
@@ -127,18 +123,6 @@ public class StockDetailActivity extends AppCompatActivity {
 
     private void bindPurchaseActions() {
         purchaseRecordManager = PurchaseRecordManager.getInstance(this);
-        loadPurchaseRecord();
-
-        etPurchaseDate.setOnClickListener(v -> {
-            Calendar cal = Calendar.getInstance();
-            new DatePickerDialog(this, (view, year, month, dayOfMonth) -> {
-                String date = year + "-" + String.format(Locale.getDefault(), "%02d", month + 1) + "-" + String.format(Locale.getDefault(), "%02d", dayOfMonth);
-                etPurchaseDate.setText(date);
-            }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH)).show();
-        });
-
-        btnSavePurchase.setOnClickListener(v -> savePurchaseRecord());
-        btnDeletePurchase.setOnClickListener(v -> deletePurchaseRecord());
 
         btnAddStock.setOnClickListener(v -> {
             if (SelectedStockManager.getInstance(this).isSelected(stock.getCode())) {
@@ -151,7 +135,9 @@ public class StockDetailActivity extends AppCompatActivity {
             updateAddStockButton();
         });
 
-        btnAiAnalysis.setOnClickListener(v -> {
+        btnAddTradeRecord.setOnClickListener(v -> showAddTradeRecordDialog());
+
+        btnAiAnalysisHeader.setOnClickListener(v -> {
             Intent intent = new Intent(this, DeepSeekChatActivity.class);
             intent.putExtra("code", stock.getCode());
             intent.putExtra("name", stock.getName());
@@ -164,77 +150,176 @@ public class StockDetailActivity extends AppCompatActivity {
             }
             startActivity(intent);
         });
+
+        refreshPurchaseRecords();
     }
 
-    private void loadPurchaseRecord() {
-        currentRecord = purchaseRecordManager.getRecord(stock.getCode());
-        if (currentRecord != null) {
-            etPurchasePrice.setText(String.valueOf(currentRecord.getPrice()));
-            etPurchaseDate.setText(currentRecord.getDate());
-            purchaseInfoLayout.setVisibility(View.VISIBLE);
-        } else {
-            etPurchasePrice.setText("");
-            etPurchaseDate.setText("");
+    private void showAddTradeRecordDialog() {
+        LinearLayout dialogLayout = new LinearLayout(this);
+        dialogLayout.setOrientation(LinearLayout.VERTICAL);
+        dialogLayout.setPadding(40, 20, 40, 20);
+
+        EditText etPrice = new EditText(this);
+        etPrice.setHint("输入价格");
+        etPrice.setInputType(android.text.InputType.TYPE_CLASS_NUMBER |
+                android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        etPrice.setTextSize(18);
+        etPrice.setPadding(12, 12, 12, 12);
+        etPrice.setMinHeight(56);
+
+        EditText etDate = new EditText(this);
+        etDate.setHint("点击选择日期");
+        etDate.setFocusable(false);
+        etDate.setCursorVisible(false);
+        etDate.setTextSize(18);
+        etDate.setPadding(12, 12, 12, 12);
+        etDate.setMinHeight(56);
+
+        Calendar cal = Calendar.getInstance();
+        String today = cal.get(Calendar.YEAR) + "-" +
+                String.format(Locale.getDefault(), "%02d", cal.get(Calendar.MONTH) + 1) + "-" +
+                String.format(Locale.getDefault(), "%02d", cal.get(Calendar.DAY_OF_MONTH));
+        etDate.setText(today);
+
+        etDate.setOnClickListener(v -> {
+            Calendar c = Calendar.getInstance();
+            new DatePickerDialog(this, (view, year, month, dayOfMonth) -> {
+                String date = year + "-" + String.format(Locale.getDefault(), "%02d", month + 1) + "-"
+                        + String.format(Locale.getDefault(), "%02d", dayOfMonth);
+                etDate.setText(date);
+            }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show();
+        });
+
+        dialogLayout.addView(etPrice);
+        dialogLayout.addView(etDate);
+
+        new AlertDialog.Builder(this)
+                .setTitle("添加买卖记录")
+                .setView(dialogLayout)
+                .setPositiveButton("确定", (dialog, which) -> {
+                    String priceStr = etPrice.getText().toString().trim();
+                    String dateStr = etDate.getText().toString().trim();
+
+                    if (priceStr.isEmpty()) {
+                        Toast.makeText(this, "请输入价格", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
+                    double price;
+                    try {
+                        price = Double.parseDouble(priceStr);
+                    } catch (NumberFormatException e) {
+                        Toast.makeText(this, "价格格式不正确", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
+                    purchaseRecordManager.addRecord(stock.getCode(), price, dateStr);
+                    refreshPurchaseRecords();
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void refreshPurchaseRecords() {
+        purchaseRecordsContainer.removeAllViews();
+        List<PurchaseRecord> list = purchaseRecordManager.getRecords(stock.getCode());
+
+        if (list.isEmpty()) {
             purchaseInfoLayout.setVisibility(View.GONE);
-        }
-    }
-
-    private void savePurchaseRecord() {
-        String priceStr = etPurchasePrice.getText().toString().trim();
-        String dateStr = etPurchaseDate.getText().toString().trim();
-
-        if (priceStr.isEmpty()) {
-            etPurchasePrice.setError("请输入买入价格");
-            return;
-        }
-        if (dateStr.isEmpty()) {
-            etPurchaseDate.setError("请选择买入日期");
+            purchaseRecordsContainer.setVisibility(View.GONE);
             return;
         }
 
-        double price;
-        try {
-            price = Double.parseDouble(priceStr);
-        } catch (NumberFormatException e) {
-            etPurchasePrice.setError("价格格式不正确");
-            return;
-        }
-
-        purchaseRecordManager.saveRecord(stock.getCode(), price, dateStr);
-        currentRecord = purchaseRecordManager.getRecord(stock.getCode());
+        purchaseRecordsContainer.setVisibility(View.VISIBLE);
         purchaseInfoLayout.setVisibility(View.VISIBLE);
-        updatePurchaseInfo();
-    }
 
-    private void deletePurchaseRecord() {
-        purchaseRecordManager.deleteRecord(stock.getCode());
-        currentRecord = null;
-        etPurchasePrice.setText("");
-        etPurchaseDate.setText("");
-        purchaseInfoLayout.setVisibility(View.GONE);
-    }
+        DecimalFormat df = new DecimalFormat("#0.000");
 
-    private void updatePurchaseInfo() {
-        if (currentRecord == null || quote == null) {
-            return;
+        double totalCost = 0;
+        for (PurchaseRecord r : list) totalCost += r.getPrice();
+        double avgCost = totalCost / list.size();
+
+        tvAvgCost.setText("均价: " + df.format(avgCost) + "  共" + list.size() + "笔");
+
+        for (int i = 0; i < list.size(); i++) {
+            PurchaseRecord record = list.get(i);
+
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setPadding(0, 3, 0, 3);
+            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+            TextView tvIdx = new TextView(this);
+            tvIdx.setText((i + 1) + ".");
+            tvIdx.setTextSize(13);
+            tvIdx.setTextColor(getResources().getColor(R.color.text_secondary, null));
+            tvIdx.setPadding(0, 0, 6, 0);
+            row.addView(tvIdx);
+
+            TextView tvInfo = new TextView(this);
+            tvInfo.setText(df.format(record.getPrice()) + "  " + record.getDate());
+            tvInfo.setTextSize(13);
+            tvInfo.setTextColor(getResources().getColor(R.color.text_primary, null));
+            tvInfo.setLayoutParams(new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+            row.addView(tvInfo);
+
+            if (quote != null && quote.getPrice() > 0) {
+                double pnl = quote.getPrice() - record.getPrice();
+                double pnlPct = (pnl / record.getPrice()) * 100;
+                TextView tvPnl = new TextView(this);
+                tvPnl.setText(String.format(Locale.getDefault(), "%+.2f%%", pnlPct));
+                tvPnl.setTextSize(12);
+                tvPnl.setTextColor(pnlPct >= 0 ?
+                        getResources().getColor(R.color.red) :
+                        getResources().getColor(R.color.green));
+                tvPnl.setPadding(8, 0, 8, 0);
+                row.addView(tvPnl);
+            }
+
+            TextView btnDel = new TextView(this);
+            btnDel.setText("删除");
+            btnDel.setTextSize(11);
+            btnDel.setTextColor(0xFFFF0000);
+            btnDel.setPadding(12, 4, 12, 4);
+            btnDel.setBackgroundResource(R.drawable.bg_chip);
+            String recordId = record.getId();
+            btnDel.setOnClickListener(v -> {
+                new AlertDialog.Builder(StockDetailActivity.this)
+                        .setTitle("确认删除")
+                        .setMessage("删除这笔买入记录：" + df.format(record.getPrice()) + " " + record.getDate() + "？")
+                        .setPositiveButton("确定", (d, w) -> {
+                            purchaseRecordManager.deleteRecord(stock.getCode(), recordId);
+                            refreshPurchaseRecords();
+                        })
+                        .setNegativeButton("取消", null)
+                        .show();
+            });
+            row.addView(btnDel);
+
+            purchaseRecordsContainer.addView(row);
         }
 
-        double costPrice = currentRecord.getPrice();
-        double currentPrice = quote.getPrice();
-        double profitLoss = currentPrice - costPrice;
-        double profitLossPct = (profitLoss / costPrice) * 100;
+        updatePurchaseInfo(avgCost);
+        updateChartPurchaseLines();
+    }
 
-        tvCostPrice.setText("成本价: " + formatPrice(costPrice) + "  日期: " + currentRecord.getDate());
+    private void updatePurchaseInfo(double avgCost) {
+        if (quote == null) return;
+
+        double currentPrice = quote.getPrice();
+        double profitLoss = currentPrice - avgCost;
+        double profitLossPct = (profitLoss / avgCost) * 100;
 
         if (profitLoss > 0) {
-            tvProfitLoss.setText(String.format(Locale.getDefault(), "盈亏: +%.3f  +%.3f%%", profitLoss, profitLossPct));
+            tvProfitLoss.setText(String.format(Locale.getDefault(), "浮动盈亏: +%.3f  +%.3f%%", profitLoss, profitLossPct));
             tvProfitLoss.setTextColor(getResources().getColor(R.color.red));
         } else if (profitLoss < 0) {
-            tvProfitLoss.setText(String.format(Locale.getDefault(), "盈亏: %.3f  %.3f%%", profitLoss, profitLossPct));
+            tvProfitLoss.setText(String.format(Locale.getDefault(), "浮动盈亏: %.3f  %.3f%%", profitLoss, profitLossPct));
             tvProfitLoss.setTextColor(getResources().getColor(R.color.green));
         } else {
-            tvProfitLoss.setText("盈亏: 0.000  0.000%");
-            tvProfitLoss.setTextColor(Color.parseColor("#999999"));
+            tvProfitLoss.setText("浮动盈亏: 0.000  0.000%");
+            tvProfitLoss.setTextColor(getResources().getColor(R.color.text_secondary, null));
         }
     }
 
@@ -280,7 +365,29 @@ public class StockDetailActivity extends AppCompatActivity {
 
             EastMoneyApi.fetchExtra(stock.getCode(), q -> {
                 try {
-                    quote = q;
+                    if (quote == null) {
+                        quote = q;
+                    } else {
+                        quote = new RealtimeQuote.Builder(quote)
+                                .pe(q.getPe())
+                                .pb(q.getPb())
+                                .turnoverRate(q.getTurnoverRate())
+                                .volumeRatio(q.getVolumeRatio())
+                                .totalMarketCap(q.getTotalMarketCap())
+                                .circulatingMarketCap(q.getCirculatingMarketCap())
+                                .limitUp(q.getLimitUp())
+                                .limitDown(q.getLimitDown())
+                                .eps(q.getEps())
+                                .dividendYield(q.getDividendYield())
+                                .ma5(q.getMa5())
+                                .ma10(q.getMa10())
+                                .ma20(q.getMa20())
+                                .ma30(q.getMa30())
+                                .ma60(q.getMa60())
+                                .iopv(q.getIopv())
+                                .premiumRate(q.getPremiumRate())
+                                .build();
+                    }
                     updateQuoteDisplay();
                 } catch (Exception e) {
                     Log.e("StockDetail", "extra error: " + e.getMessage(), e);
@@ -336,13 +443,23 @@ public class StockDetailActivity extends AppCompatActivity {
         }
     }
 
+    private void updateChartPurchaseLines() {
+        List<PurchaseRecord> records = purchaseRecordManager.getRecords(stock.getCode());
+        List<Double> prices = new ArrayList<>();
+        for (PurchaseRecord r : records) {
+            prices.add(r.getPrice());
+        }
+        chartIntraday.setPurchasePrices(prices);
+        chartView.setPurchasePrices(prices);
+    }
+
     private void updateAddStockButton() {
         if (SelectedStockManager.getInstance(this).isSelected(stock.getCode())) {
             btnAddStock.setText("已自选");
-            btnAddStock.setBackgroundColor(0xFF888888);
+            btnAddStock.setBackgroundResource(R.drawable.bg_chip);
         } else {
             btnAddStock.setText("+自选");
-            btnAddStock.setBackgroundResource(R.drawable.btn_ai_bg);
+            btnAddStock.setBackgroundResource(R.drawable.bg_primary_button);
         }
     }
 
@@ -374,8 +491,8 @@ public class StockDetailActivity extends AppCompatActivity {
             priceText.setTextColor(getResources().getColor(R.color.green));
         } else {
             changeText.setText("0.00  0.00%");
-            changeText.setTextColor(Color.parseColor("#999999"));
-            priceText.setTextColor(Color.BLACK);
+            changeText.setTextColor(getResources().getColor(R.color.text_secondary, null));
+            priceText.setTextColor(getResources().getColor(R.color.text_primary, null));
         }
 
         tvOpen.setText(formatPrice(quote.getOpen()));
@@ -392,14 +509,17 @@ public class StockDetailActivity extends AppCompatActivity {
         if (stock.isEtf()) {
             etfExtraLabel.setVisibility(TextView.VISIBLE);
             tvIopv.setVisibility(TextView.VISIBLE);
-            tvIopv.setText(quote.getIopv() > 0 ? formatPrice(quote.getIopv()) : "--");
             etfPremiumLabel.setVisibility(TextView.VISIBLE);
             tvPremium.setVisibility(TextView.VISIBLE);
+            double iopv = quote.getIopv();
             double pr = quote.getPremiumRate();
-            if (pr != 0) {
+            if (iopv > 0) {
+                tvIopv.setText(formatPrice(iopv));
                 tvPremium.setText(formatPct(pr) + "%");
-                tvPremium.setTextColor(pr > 0 ? getResources().getColor(R.color.red) : getResources().getColor(R.color.green));
+                tvPremium.setTextColor(pr > 0 ? getResources().getColor(R.color.red)
+                        : (pr < 0 ? getResources().getColor(R.color.green) : getResources().getColor(R.color.text_secondary, null)));
             } else {
+                tvIopv.setText("--");
                 tvPremium.setText("--");
             }
         } else {
@@ -409,7 +529,7 @@ public class StockDetailActivity extends AppCompatActivity {
             tvPremium.setVisibility(TextView.GONE);
         }
 
-        updatePurchaseInfo();
+        refreshPurchaseRecords();
     }
 
     private String formatPrice(double v) {

@@ -8,8 +8,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,57 +29,97 @@ public class StockNewsApi {
 
     public static void fetchStockNews(String stockCode, String stockName, int count, Callback<List<NewsItem>> callback) {
         new Thread(() -> {
-            try {
-                List<NewsItem> news = fetchFromSinaRoll(stockName, stockCode, count * 2, false);
-                final List<NewsItem> result = news.size() > count ? news.subList(0, count) : news;
-                MAIN_HANDLER.post(() -> callback.onResult(result));
-            } catch (Exception e) {
-                Log.e(TAG, "fetchStockNews err: " + e.getMessage());
-                final List<NewsItem> fb = new ArrayList<>();
-                fb.add(new NewsItem(stockName + ": 暂无相关新闻", "", ""));
-                MAIN_HANDLER.post(() -> callback.onResult(fb));
+            List<NewsItem> all = new ArrayList<>();
+
+            all.addAll(fetchFromEastMoneySearch(stockCode, count));
+            if (all.size() < count) {
+                all.addAll(fetchFromEastMoneySearch(stockName, count));
             }
+            if (all.size() < count) {
+                all.addAll(fetchFromSinaRoll(stockName, stockCode, count * 2));
+            }
+
+            final List<NewsItem> result = all.size() > count ? all.subList(0, count) : all;
+            MAIN_HANDLER.post(() -> callback.onResult(result));
         }).start();
     }
 
-    public static void fetchMarketNews(int count, Callback<List<NewsItem>> callback) {
-        new Thread(() -> {
-            try {
-                List<NewsItem> news = fetchMarketFromSinaRoll(count);
-                final List<NewsItem> result = news.size() > count ? news.subList(0, count) : news;
-                MAIN_HANDLER.post(() -> callback.onResult(result));
-            } catch (Exception e) {
-                Log.e(TAG, "fetchMarketNews err: " + e.getMessage());
-                final List<NewsItem> fb = new ArrayList<>();
-                fb.add(new NewsItem("暂无市场要闻", "", ""));
-                MAIN_HANDLER.post(() -> callback.onResult(fb));
+    private static List<NewsItem> fetchFromEastMoneySearch(String keyword, int count) {
+        List<NewsItem> list = new ArrayList<>();
+        try {
+            String encodedKw = URLEncoder.encode(keyword, "UTF-8");
+            String param = "{\"uid\":\"\",\"keyword\":\"" + keyword + "\","
+                    + "\"type\":[\"cmsArticleWebOld\"],\"client\":\"web\",\"clientType\":\"web\","
+                    + "\"clientVersion\":\"curr\",\"param\":{\"cmsArticleWebOld\":{"
+                    + "\"searchScope\":\"default\",\"sort\":\"default\",\"pageIndex\":1,"
+                    + "\"pageSize\":" + count + ",\"preTag\":\"\",\"postTag\":\"\"}}}";
+            String encodedParam = URLEncoder.encode(param, "UTF-8");
+            String url = "https://search-api-web.eastmoney.com/search/jsonp?cb=jQuery&param=" + encodedParam;
+
+            Log.d(TAG, "EastMoney search url: " + url);
+            Request req = new Request.Builder()
+                    .url(url)
+                    .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
+                    .addHeader("Accept", "*/*")
+                    .addHeader("Referer", "https://www.eastmoney.com/")
+                    .build();
+
+            Response resp = CLIENT.newCall(req).execute();
+            if (!resp.isSuccessful() || resp.body() == null) {
+                resp.close();
+                return list;
             }
-        }).start();
+
+            String text = resp.body().string();
+            resp.close();
+
+            int start = text.indexOf("(");
+            int end = text.lastIndexOf(")");
+            if (start >= 0 && end > start) {
+                String json = text.substring(start + 1, end);
+                list.addAll(parseEastMoneySearchResponse(json));
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "fetchFromEastMoneySearch err: " + e.getMessage(), e);
+        }
+        return list;
     }
 
-    private static List<NewsItem> fetchMarketFromSinaRoll(int count) {
-        String today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
-        Log.d(TAG, "today: " + today);
+    private static List<NewsItem> parseEastMoneySearchResponse(String json) {
+        List<NewsItem> list = new ArrayList<>();
+        try {
+            JsonObject obj = GSON.fromJson(json, JsonObject.class);
+            if (obj == null) return list;
+            JsonObject result = obj.getAsJsonObject("result");
+            if (result == null) return list;
+            JsonArray arr = result.getAsJsonArray("cmsArticleWebOld");
+            if (arr == null) return list;
 
-        List<NewsItem> all = new ArrayList<>();
-
-        all.addAll(fetchFromSinaRoll("", "", count * 2, true));
-        if (all.size() >= count) return all;
-
-        all.addAll(fetchFromSinaRoll("", "", count * 2, false));
-
-        return all;
+            for (int i = 0; i < arr.size(); i++) {
+                JsonObject item = arr.get(i).getAsJsonObject();
+                String title = item.has("title") && !item.get("title").isJsonNull()
+                        ? item.get("title").getAsString() : "";
+                String date = item.has("date") && !item.get("date").isJsonNull()
+                        ? item.get("date").getAsString() : "";
+                String url = item.has("url") && !item.get("url").isJsonNull()
+                        ? item.get("url").getAsString() : "";
+                if (title.isEmpty()) continue;
+                list.add(new NewsItem(title, date, url));
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "parseEastMoney err: " + e.getMessage(), e);
+        }
+        return list;
     }
 
-    private static List<NewsItem> fetchFromSinaRoll(String filterName, String filterCode, int count, boolean todayOnly) {
+    private static List<NewsItem> fetchFromSinaRoll(String filterName, String filterCode, int count) {
         List<NewsItem> all = new ArrayList<>();
-        String today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
         try {
             int fetchCount = Math.max(count * 2, 10);
             String url = "https://feed.mix.sina.com.cn/api/roll/get"
                     + "?pageid=153&lid=2509&k=&num=" + fetchCount + "&page=1";
 
-            Log.d(TAG, "fetch url: " + url);
+            Log.d(TAG, "Sina roll url: " + url);
             Request req = new Request.Builder()
                     .url(url)
                     .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
@@ -89,7 +128,6 @@ public class StockNewsApi {
                     .build();
 
             Response resp = CLIENT.newCall(req).execute();
-            Log.d(TAG, "resp code: " + resp.code());
             if (!resp.isSuccessful() || resp.body() == null) {
                 resp.close();
                 return all;
@@ -99,53 +137,35 @@ public class StockNewsApi {
             resp.close();
 
             JsonObject obj = GSON.fromJson(text, JsonObject.class);
-            if (!obj.has("result") || !obj.get("result").isJsonObject()) {
-                return all;
-            }
+            if (obj == null || !obj.has("result") || !obj.get("result").isJsonObject()) return all;
             JsonObject result = obj.getAsJsonObject("result");
-            if (!result.has("data") || !result.get("data").isJsonArray()) {
-                return all;
-            }
+            if (!result.has("data") || !result.get("data").isJsonArray()) return all;
             JsonArray arr = result.getAsJsonArray("data");
-            Log.d(TAG, "data count: " + arr.size());
 
-            boolean doFilter = !filterName.isEmpty() || !filterCode.isEmpty();
             String kw1 = filterName.toLowerCase();
             String kw2 = filterCode.toLowerCase();
 
             for (int i = 0; i < arr.size(); i++) {
                 JsonObject item = arr.get(i).getAsJsonObject();
-                String title = "";
-                if (item.has("title") && !item.get("title").isJsonNull()) {
-                    title = item.get("title").getAsString();
-                }
+                String title = item.has("title") && !item.get("title").isJsonNull()
+                        ? item.get("title").getAsString() : "";
                 if (title.isEmpty()) continue;
 
-                String date = "";
-                if (item.has("ctime") && !item.get("ctime").isJsonNull()) {
-                    date = item.get("ctime").getAsString();
-                    if (date.length() > 10) date = date.substring(0, 10);
-                }
+                String t = title.toLowerCase();
+                if (!t.contains(kw1) && !t.contains(kw2)) continue;
 
-                if (todayOnly && !date.equals(today)) continue;
+                String date = item.has("ctime") && !item.get("ctime").isJsonNull()
+                        ? item.get("ctime").getAsString() : "";
+                if (date.length() > 10) date = date.substring(0, 10);
+                String urlStr = item.has("url") && !item.get("url").isJsonNull()
+                        ? item.get("url").getAsString() : "";
 
-                if (doFilter) {
-                    String t = title.toLowerCase();
-                    if (!t.contains(kw1) && !t.contains(kw2)) continue;
-                }
-
-                String urlStr = "";
-                if (item.has("url") && !item.get("url").isJsonNull()) {
-                    urlStr = item.get("url").getAsString();
-                }
                 all.add(new NewsItem(title, date, urlStr));
-
                 if (all.size() >= count) break;
             }
         } catch (Exception e) {
-            Log.e(TAG, "fetch err: " + e.getMessage(), e);
+            Log.e(TAG, "fetchFromSinaRoll err: " + e.getMessage(), e);
         }
-        Log.i(TAG, "returning " + all.size() + " items todayOnly=" + todayOnly);
         return all;
     }
 

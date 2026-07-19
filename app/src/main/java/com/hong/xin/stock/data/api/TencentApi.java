@@ -113,6 +113,47 @@ public class TencentApi {
         });
     }
 
+    public interface EtfQuoteCallback {
+        void onResult(double iopv, double premiumRate);
+    }
+
+    public static void fetchEtfIopv(String code, EtfQuoteCallback callback) {
+        String prefix = getTencentPrefix(code);
+        String url = "http://qt.gtimg.cn/q=" + prefix + code;
+
+        Log.d(TAG, "fetchEtfIopv url: " + url);
+
+        Request request = new Request.Builder()
+                .url(url)
+                .addHeader("User-Agent", "Mozilla/5.0")
+                .addHeader("Referer", "https://gu.qq.com/")
+                .build();
+
+        CLIENT.newCall(request).enqueue(new okhttp3.Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "fetchEtfIopv onFailure: " + e.getMessage());
+                MAIN_HANDLER.post(() -> callback.onResult(0, 0));
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    if (!response.isSuccessful() || response.body() == null) {
+                        MAIN_HANDLER.post(() -> callback.onResult(0, 0));
+                        return;
+                    }
+                    String body = response.body().string();
+                    RealtimeQuote quote = parseRealtimeResponse(code, body);
+                    MAIN_HANDLER.post(() -> callback.onResult(quote.getIopv(), quote.getPremiumRate()));
+                } catch (Exception e) {
+                    Log.e(TAG, "fetchEtfIopv error: " + e.getMessage());
+                    MAIN_HANDLER.post(() -> callback.onResult(0, 0));
+                }
+            }
+        });
+    }
+
     public static void fetchRealtime(String code, Callback<RealtimeQuote> callback) {
         String prefix = getTencentPrefix(code);
         String url = "http://qt.gtimg.cn/q=" + prefix + code;
@@ -175,7 +216,7 @@ public class TencentApi {
         return -1;
     }
 
-    private static RealtimeQuote parseRealtimeResponse(String code, String body) {
+    static RealtimeQuote parseRealtimeResponse(String code, String body) {
         try {
             int eqIdx = body.indexOf('"');
             int endIdx = body.lastIndexOf('"');
@@ -197,6 +238,17 @@ public class TencentApi {
             double change = price - preClose;
             double pe = parseDouble(parts[39]);
 
+            double iopv = 0;
+            double premiumRate = 0;
+            boolean isEtf = parts.length > 61 && "ETF".equals(parts[61]);
+            if (isEtf && parts.length > 78) {
+                iopv = parseDouble(parts[78]);
+                if (iopv > 0 && price > 0) {
+                    premiumRate = (price - iopv) / iopv * 100.0;
+                }
+                Log.d(TAG, "ETF detected: " + code + " iopv=" + iopv + " premiumRate=" + premiumRate);
+            }
+
             return new RealtimeQuote.Builder()
                     .name(name)
                     .code(code)
@@ -210,6 +262,8 @@ public class TencentApi {
                     .change(change)
                     .preClose(preClose)
                     .pe(pe)
+                    .iopv(iopv)
+                    .premiumRate(premiumRate)
                     .build();
         } catch (Exception e) {
             Log.e(TAG, "parseRealtimeResponse error: " + e.getMessage());

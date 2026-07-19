@@ -30,7 +30,8 @@ public class EastMoneyApi {
     private static final Gson GSON = new Gson();
     private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
     private static final StockDataCache CACHE = StockDataCache.getInstance();
-
+    private static final ConcurrentHashMap<String, RealtimeQuote> LAST_ETF_EXTRA = new ConcurrentHashMap<>();
+ 
     private static final String TAG = "EastMoneyApi";
 
     private static final ConcurrentHashMap<String, Object> IN_FLIGHT_LOCKS = new ConcurrentHashMap<>();
@@ -96,14 +97,15 @@ public class EastMoneyApi {
             @Override
             public void onFailure(Call call, IOException e) {
                 Log.e(TAG, "fetchExtra onFailure: " + e.getMessage(), e);
-                MAIN_HANDLER.post(() -> callback.onResult(new RealtimeQuote()));
+                RealtimeQuote cached = LAST_ETF_EXTRA.get(code);
+                MAIN_HANDLER.post(() -> callback.onResult(cached != null ? cached : new RealtimeQuote()));
             }
 
             @Override
             public void onResponse(Call call, Response response) {
                 try {
                     if (!response.isSuccessful() || response.body() == null) {
-                        callback.onResult(new RealtimeQuote());
+                        deliverExtraCachedOrEmpty(code, callback);
                         return;
                     }
                     String respBody = response.body().string();
@@ -111,6 +113,7 @@ public class EastMoneyApi {
                     if (json.has("data") && json.get("data").isJsonObject()) {
                         JsonObject d = json.getAsJsonObject("data");
                         double div = getPriceDiv(code);
+                        double iopv = getJsonDouble(d, "f288") / div;
                         RealtimeQuote quote = new RealtimeQuote.Builder()
                                 .name(getJsonStr(d, "f58"))
                                 .code(code)
@@ -131,20 +134,60 @@ public class EastMoneyApi {
                                 .circulatingMarketCap(getJsonDouble(d, "f117"))
                                 .limitUp(getJsonDouble(d, "f51") / div)
                                 .limitDown(getJsonDouble(d, "f52") / div)
-                                .iopv(getJsonDouble(d, "f288") / div)
+                                .iopv(iopv)
                                 .premiumRate(getJsonDouble(d, "f289"))
                                 .build();
-                        Log.d(TAG, "fetchExtra OK: " + code + " pe=" + quote.getPe() + " pb=" + quote.getPb());
-                        MAIN_HANDLER.post(() -> callback.onResult(quote));
+
+                        if (quote.getIopv() > 0) {
+                            LAST_ETF_EXTRA.put(code, quote);
+                        }
+
+                        if (iopv <= 0) {
+                            Log.d(TAG, "fetchExtra EastMoney IOPV invalid, try Tencent: " + code);
+                            TencentApi.fetchEtfIopv(code, (tencentIopv, tencentPremium) -> {
+                                RealtimeQuote result;
+                                if (tencentIopv > 0) {
+                                    result = new RealtimeQuote.Builder(quote)
+                                            .iopv(tencentIopv)
+                                            .premiumRate(tencentPremium)
+                                            .build();
+                                    LAST_ETF_EXTRA.put(code, result);
+                                } else {
+                                    result = LAST_ETF_EXTRA.containsKey(code) ? LAST_ETF_EXTRA.get(code) : quote;
+                                }
+                                Log.d(TAG, "fetchExtra OK (Tencent fallback): " + code
+                                        + " pe=" + result.getPe() + " pb=" + result.getPb()
+                                        + " iopv=" + result.getIopv() + " premiumRate=" + result.getPremiumRate());
+                                MAIN_HANDLER.post(() -> callback.onResult(result));
+                            });
+                            return;
+                        }
+
+                        RealtimeQuote result = (quote.getIopv() > 0 || !LAST_ETF_EXTRA.containsKey(code))
+                                ? quote : LAST_ETF_EXTRA.get(code);
+                        Log.d(TAG, "fetchExtra OK: " + code + " pe=" + result.getPe() + " pb=" + result.getPb()
+                                    + " iopv=" + result.getIopv() + " premiumRate=" + result.getPremiumRate()
+                                    + (result != quote ? " (cached)" : ""));
+                        MAIN_HANDLER.post(() -> callback.onResult(result));
                     } else {
-                        MAIN_HANDLER.post(() -> callback.onResult(new RealtimeQuote()));
+                        deliverExtraCachedOrEmpty(code, callback);
                     }
                 } catch (Exception e) {
                     Log.e(TAG, "fetchExtra parse error: " + e.getMessage(), e);
-                    MAIN_HANDLER.post(() -> callback.onResult(new RealtimeQuote()));
+                    deliverExtraCachedOrEmpty(code, callback);
                 }
             }
         });
+    }
+
+    private static void deliverExtraCachedOrEmpty(String code, Callback<RealtimeQuote> callback) {
+        RealtimeQuote cached = LAST_ETF_EXTRA.get(code);
+        if (cached != null) {
+            Log.d(TAG, "fetchExtra no data, use cached: " + code);
+            MAIN_HANDLER.post(() -> callback.onResult(cached));
+        } else {
+            MAIN_HANDLER.post(() -> callback.onResult(new RealtimeQuote()));
+        }
     }
 
     private static double getPriceDiv(String code) {
@@ -216,6 +259,7 @@ public class EastMoneyApi {
     }
 
     private static void fetchRealtimeFromEastMoney(String code, Callback<RealtimeQuote> callback) {
+        double div = getPriceDiv(code);
         String secid = getSecid(code);
         String url = "https://push2.eastmoney.com/api/qt/stock/get"
                 + "?secid=" + secid
@@ -256,15 +300,15 @@ public class EastMoneyApi {
                         RealtimeQuote quote = new RealtimeQuote.Builder()
                                 .name(getJsonStr(d, "f58"))
                                 .code(code)
-                                .price(getJsonDouble(d, "f43") / 100.0)
-                                .high(getJsonDouble(d, "f44") / 100.0)
-                                .low(getJsonDouble(d, "f45") / 100.0)
-                                .open(getJsonDouble(d, "f46") / 100.0)
+                                .price(getJsonDouble(d, "f43") / div)
+                                .high(getJsonDouble(d, "f44") / div)
+                                .low(getJsonDouble(d, "f45") / div)
+                                .open(getJsonDouble(d, "f46") / div)
                                 .volume(getJsonDouble(d, "f47"))
                                 .amount(getJsonDouble(d, "f48"))
                                 .pctChg(getJsonDouble(d, "f170"))
-                                .change(getJsonDouble(d, "f169") / 100.0)
-                                .preClose(getJsonDouble(d, "f60") / 100.0)
+                                .change(getJsonDouble(d, "f169") / div)
+                                .preClose(getJsonDouble(d, "f60") / div)
                                 .pe(getJsonDouble(d, "f162"))
                                 .peTTM(getJsonDouble(d, "f163"))
                                 .pb(getJsonDouble(d, "f167"))
@@ -272,8 +316,8 @@ public class EastMoneyApi {
                                 .volumeRatio(getJsonDouble(d, "f50") / 100.0)
                                 .totalMarketCap(getJsonDouble(d, "f116"))
                                 .circulatingMarketCap(getJsonDouble(d, "f117"))
-                                .limitUp(getJsonDouble(d, "f51") / 100.0)
-                                .limitDown(getJsonDouble(d, "f52") / 100.0)
+                                .limitUp(getJsonDouble(d, "f51") / div)
+                                .limitDown(getJsonDouble(d, "f52") / div)
                                 .eps(getJsonDouble(d, "f228"))
                                 .dividendYield(getJsonDouble(d, "f188"))
                                 .ma5(getJsonDouble(d, "f172"))
@@ -281,7 +325,7 @@ public class EastMoneyApi {
                                 .ma20(getJsonDouble(d, "f174"))
                                 .ma30(getJsonDouble(d, "f175"))
                                 .ma60(getJsonDouble(d, "f171"))
-                                .iopv(getJsonDouble(d, "f288"))
+                                .iopv(getJsonDouble(d, "f288") / div)
                                 .premiumRate(getJsonDouble(d, "f289"))
                                 .build();
                         Log.i(TAG, "fetchRealtimeFromEastMoney OK: " + code

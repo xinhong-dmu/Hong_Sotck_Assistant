@@ -3,76 +3,183 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:background="@color/background">
+
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="10dp"
+        android:layout_marginTop="8dp"
+        app:cardElevation="2dp"
+        app:cardCornerRadius="12dp"
+        app:cardBackgroundColor="@color/card_bg">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="14dp"
+            android:gravity="center_vertical">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/stock_name"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/text_primary"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/stock_code"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    android:layout_marginTop="3dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="end">
+
+                <TextView
+                    android:id="@+id/current_price"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/text_primary"
+                    android:textSize="26sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/change_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="14sp"
+                    android:layout_marginTop="2dp"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="3dp" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="10dp"
+                    android:gravity="end">
+
+                    <TextView
+                        android:id="@+id/btn_add_stock"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:paddingHorizontal="14dp"
+                        android:paddingVertical="6dp"
+                        android:text="+自选"
+                        android:textColor="@color/white"
+                        android:textSize="13sp"
+                        android:background="@drawable/bg_primary_button" />
+
+                    <TextView
+                        android:id="@+id/btn_add_trade_record"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:gravity="center"
+                        android:paddingHorizontal="14dp"
+                        android:paddingVertical="6dp"
+                        android:text="买卖"
+                        android:textColor="@color/white"
+                        android:textSize="13sp"
+                        android:background="@drawable/bg_primary_button" />
+
+                    <TextView
+                        android:id="@+id/btn_ai_analysis_header"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:gravity="center"
+                        android:paddingHorizontal="14dp"
+                        android:paddingVertical="6dp"
+                        android:text="AI"
+                        android:textColor="@color/white"
+                        android:textSize="13sp"
+                        android:background="@drawable/btn_ai_bg" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="16dp"
-        android:gravity="center_vertical">
+        android:padding="12dp"
+        android:gravity="center">
 
-        <LinearLayout
+        <TextView
+            android:id="@+id/tab_intraday"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:orientation="vertical">
+            android:gravity="center"
+            android:padding="8dp"
+            android:text="分时"
+            android:textColor="@color/black"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:background="@drawable/chart_tab_bg" />
 
-            <TextView
-                android:id="@+id/stock_name"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/black"
-                android:textSize="20sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/stock_code"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="#999999"
-                android:textSize="13sp"
-                android:layout_marginTop="2dp" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="wrap_content"
+        <TextView
+            android:id="@+id/tab_5d"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:gravity="end">
+            android:layout_weight="1"
+            android:gravity="center"
+            android:padding="8dp"
+            android:text="5日"
+            android:textColor="#666666"
+            android:textSize="15sp"
+            android:background="@android:color/transparent" />
 
-            <TextView
-                android:id="@+id/current_price"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/black"
-                android:textSize="24sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/change_text"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textSize="14sp"
-                android:layout_marginTop="2dp" />
-
-            <TextView
-                android:id="@+id/btn_add_stock"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:gravity="center"
-                android:padding="4dp"
-                android:text="+自选"
-                android:textColor="@color/white"
-                android:textSize="11sp"
-                android:background="@drawable/btn_ai_bg" />
-        </LinearLayout>
+        <TextView
+            android:id="@+id/tab_20d"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:padding="8dp"
+            android:text="20日"
+            android:textColor="#666666"
+            android:textSize="15sp"
+            android:background="@android:color/transparent" />
     </LinearLayout>
+
+    <com.hong.xin.stock.MinuteChartView
+        android:id="@+id/chart_intraday"
+        android:layout_width="match_parent"
+        android:layout_height="300dp"
+        android:padding="4dp" />
+
+    <com.hong.xin.stock.MinuteChartView
+        android:id="@+id/chart_view"
+        android:layout_width="360dp"
+        android:layout_height="300dp"
+        android:layout_gravity="center_horizontal"
+        android:padding="4dp"
+        android:visibility="gone" />
 
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
+        android:layout_marginTop="8dp"
         android:background="#E0E0E0" />
 
     <ScrollView
@@ -86,387 +193,131 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <LinearLayout
+            <TextView
+                style="@style/SectionTitle"
+                android:text="持仓信息" />
+
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:padding="12dp"
-                android:gravity="center">
-
-                <TextView
-                    android:id="@+id/tab_intraday"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:gravity="center"
-                    android:padding="8dp"
-                    android:text="分时"
-                    android:textColor="@color/black"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
-                    android:background="@drawable/chart_tab_bg" />
-
-                <TextView
-                    android:id="@+id/tab_5d"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:gravity="center"
-                    android:padding="8dp"
-                    android:text="5日"
-                    android:textColor="#666666"
-                    android:textSize="15sp"
-                    android:background="@android:color/transparent" />
-
-                <TextView
-                    android:id="@+id/tab_20d"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:gravity="center"
-                    android:padding="8dp"
-                    android:text="20日"
-                    android:textColor="#666666"
-                    android:textSize="15sp"
-                    android:background="@android:color/transparent" />
-            </LinearLayout>
-
-            <com.hong.xin.stock.MinuteChartView
-                android:id="@+id/chart_intraday"
-                android:layout_width="match_parent"
-                android:layout_height="300dp"
-                android:padding="4dp" />
-
-            <com.hong.xin.stock.MinuteChartView
-                android:id="@+id/chart_view"
-                android:layout_width="360dp"
-                android:layout_height="300dp"
-                android:layout_gravity="center_horizontal"
-                android:padding="4dp"
-                android:visibility="gone" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="8dp"
-                android:background="#E0E0E0" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:padding="12dp">
+                android:layout_marginHorizontal="10dp"
+                android:layout_marginBottom="4dp"
+                app:cardElevation="1dp"
+                app:cardCornerRadius="12dp"
+                app:cardBackgroundColor="@color/card_bg">
 
                 <LinearLayout
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
+                    android:orientation="vertical"
+                    android:padding="14dp">
 
-                    <TextView
-                        style="@style/detail_label"
-                        android:text="开盘" />
-                    <TextView
-                        android:id="@+id/tv_open"
-                        style="@style/detail_value" />
-
-                    <TextView
-                        style="@style/detail_label"
+                    <LinearLayout
+                        android:id="@+id/purchase_records_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
                         android:layout_marginTop="8dp"
-                        android:text="最高" />
-                    <TextView
-                        android:id="@+id/tv_high"
-                        style="@style/detail_value" />
+                        android:visibility="gone" />
 
-                    <TextView
-                        style="@style/detail_label"
+                    <LinearLayout
+                        android:id="@+id/purchase_info_layout"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
                         android:layout_marginTop="8dp"
-                        android:text="成交量" />
-                    <TextView
-                        android:id="@+id/tv_volume"
-                        style="@style/detail_value" />
+                        android:visibility="gone">
 
-                    <TextView
-                        style="@style/detail_label"
-                        android:layout_marginTop="8dp"
-                        android:text="市盈率" />
-                    <TextView
-                        android:id="@+id/tv_pe"
-                        style="@style/detail_value" />
+                        <TextView
+                            android:id="@+id/tv_avg_cost"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textSize="14sp"
+                            android:textColor="@color/text_primary" />
 
-                    <TextView
-                        style="@style/detail_label"
-                        android:layout_marginTop="8dp"
-                        android:text="市净率" />
-                    <TextView
-                        android:id="@+id/tv_pb"
-                        style="@style/detail_value" />
+                        <TextView
+                            android:id="@+id/tv_profit_loss"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:textSize="14sp"
+                            android:textColor="@color/text_primary" />
+                    </LinearLayout>
                 </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <View style="@style/SectionDivider" />
+
+            <TextView
+                style="@style/SectionTitle"
+                android:text="行情数据" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="10dp"
+                android:layout_marginBottom="8dp"
+                app:cardElevation="1dp"
+                app:cardCornerRadius="12dp"
+                app:cardBackgroundColor="@color/card_bg">
 
                 <LinearLayout
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
+                    android:orientation="horizontal"
+                    android:padding="14dp">
 
-                    <TextView
-                        style="@style/detail_label"
-                        android:text="昨收" />
-                    <TextView
-                        android:id="@+id/tv_preclose"
-                        style="@style/detail_value" />
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
 
-                    <TextView
-                        style="@style/detail_label"
-                        android:layout_marginTop="8dp"
-                        android:text="最低" />
-                    <TextView
-                        android:id="@+id/tv_low"
-                        style="@style/detail_value" />
+                        <TextView style="@style/detail_label" android:text="开盘" />
+                        <TextView android:id="@+id/tv_open" style="@style/detail_value" />
 
-                    <TextView
-                        style="@style/detail_label"
-                        android:layout_marginTop="8dp"
-                        android:text="成交额" />
-                    <TextView
-                        android:id="@+id/tv_amount"
-                        style="@style/detail_value" />
+                        <TextView style="@style/detail_label" android:layout_marginTop="8dp" android:text="最高" />
+                        <TextView android:id="@+id/tv_high" style="@style/detail_value" />
 
-                    <TextView
-                        style="@style/detail_label"
-                        android:layout_marginTop="8dp"
-                        android:text="换手率" />
-                    <TextView
-                        android:id="@+id/tv_turnover"
-                        style="@style/detail_value" />
+                        <TextView style="@style/detail_label" android:layout_marginTop="8dp" android:text="成交量" />
+                        <TextView android:id="@+id/tv_volume" style="@style/detail_value" />
 
-                    <TextView
-                        style="@style/detail_label"
-                        android:layout_marginTop="8dp"
-                        android:text="总市值" />
-                    <TextView
-                        android:id="@+id/tv_marketcap"
-                        style="@style/detail_value" />
+                        <TextView style="@style/detail_label" android:layout_marginTop="8dp" android:text="市盈率" />
+                        <TextView android:id="@+id/tv_pe" style="@style/detail_value" />
 
-                    <TextView
-                        android:id="@+id/etf_extra_label"
-                        style="@style/detail_label"
-                        android:layout_marginTop="8dp"
-                        android:text="IOPV"
-                        android:visibility="gone" />
-                    <TextView
-                        android:id="@+id/tv_iopv"
-                        style="@style/detail_value"
-                        android:visibility="gone" />
+                        <TextView style="@style/detail_label" android:layout_marginTop="8dp" android:text="市净率" />
+                        <TextView android:id="@+id/tv_pb" style="@style/detail_value" />
+                    </LinearLayout>
 
-                    <TextView
-                        android:id="@+id/etf_premium_label"
-                        style="@style/detail_label"
-                        android:layout_marginTop="8dp"
-                        android:text="溢价率"
-                        android:visibility="gone" />
-                    <TextView
-                        android:id="@+id/tv_premium"
-                        style="@style/detail_value"
-                        android:visibility="gone" />
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView style="@style/detail_label" android:text="昨收" />
+                        <TextView android:id="@+id/tv_preclose" style="@style/detail_value" />
+
+                        <TextView style="@style/detail_label" android:layout_marginTop="8dp" android:text="最低" />
+                        <TextView android:id="@+id/tv_low" style="@style/detail_value" />
+
+                        <TextView style="@style/detail_label" android:layout_marginTop="8dp" android:text="成交额" />
+                        <TextView android:id="@+id/tv_amount" style="@style/detail_value" />
+
+                        <TextView style="@style/detail_label" android:layout_marginTop="8dp" android:text="换手率" />
+                        <TextView android:id="@+id/tv_turnover" style="@style/detail_value" />
+
+                        <TextView style="@style/detail_label" android:layout_marginTop="8dp" android:text="总市值" />
+                        <TextView android:id="@+id/tv_marketcap" style="@style/detail_value" />
+
+                        <TextView android:id="@+id/etf_extra_label" style="@style/detail_label" android:layout_marginTop="8dp" android:text="IOPV" android:visibility="gone" />
+                        <TextView android:id="@+id/tv_iopv" style="@style/detail_value" android:visibility="gone" />
+
+                        <TextView android:id="@+id/etf_premium_label" style="@style/detail_label" android:layout_marginTop="8dp" android:text="溢价率" android:visibility="gone" />
+                        <TextView android:id="@+id/tv_premium" style="@style/detail_value" android:visibility="gone" />
+                    </LinearLayout>
                 </LinearLayout>
-            </LinearLayout>
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="8dp"
-                android:background="#E0E0E0" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="12dp"
-                android:text="持仓信息"
-                android:textColor="@color/black"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:gravity="center_vertical">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="买入价格:"
-                    android:textColor="#666666"
-                    android:textSize="14sp" />
-
-                <EditText
-                    android:id="@+id/et_purchase_price"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginStart="8dp"
-                    android:inputType="numberDecimal"
-                    android:hint="输入买入价格"
-                    android:textSize="14sp"
-                    android:padding="8dp"
-                    android:background="@drawable/chart_tab_bg" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:paddingTop="8dp"
-                android:gravity="center_vertical">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="买入日期:"
-                    android:textColor="#666666"
-                    android:textSize="14sp" />
-
-                <EditText
-                    android:id="@+id/et_purchase_date"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginStart="8dp"
-                    android:focusable="false"
-                    android:cursorVisible="false"
-                    android:hint="点击选择日期"
-                    android:textSize="14sp"
-                    android:padding="8dp"
-                    android:background="@drawable/chart_tab_bg" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:padding="12dp">
-
-                <TextView
-                    android:id="@+id/btn_save_purchase"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:gravity="center"
-                    android:padding="10dp"
-                    android:text="保存"
-                    android:textColor="@color/black"
-                    android:textSize="15sp"
-                    android:background="@drawable/chart_tab_bg" />
-
-                <TextView
-                    android:id="@+id/btn_delete_purchase"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginStart="12dp"
-                    android:gravity="center"
-                    android:padding="10dp"
-                    android:text="删除"
-                    android:textColor="@color/red"
-                    android:textSize="15sp"
-                    android:background="@drawable/chart_tab_bg" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/purchase_info_layout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="12dp"
-                android:visibility="gone">
-
-                <TextView
-                    android:id="@+id/tv_cost_price"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textSize="14sp"
-                    android:textColor="@color/black" />
-
-                <TextView
-                    android:id="@+id/tv_profit_loss"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:textSize="14sp"
-                    android:textColor="@color/black" />
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/btn_ai_analysis"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_margin="12dp"
-                android:gravity="center"
-                android:padding="12dp"
-                android:text="AI 分析"
-                android:textColor="@color/white"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:background="@drawable/btn_ai_bg" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="8dp"
-                android:background="#E0E0E0" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="12dp"
-                android:text="相关新闻"
-                android:textColor="@color/black"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tv_news_section_label"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:paddingBottom="4dp"
-                android:text="-- 个股新闻 --"
-                android:textColor="#666666"
-                android:textSize="13sp" />
-
-            <LinearLayout
-                android:id="@+id/news_stock_layout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:paddingTop="8dp"
-                android:paddingBottom="4dp"
-                android:text="-- 市场要闻 --"
-                android:textColor="#666666"
-                android:textSize="13sp" />
-
-            <LinearLayout
-                android:id="@+id/news_market_layout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:paddingBottom="8dp" />
+            </com.google.android.material.card.MaterialCardView>
 
         </LinearLayout>
     </ScrollView>

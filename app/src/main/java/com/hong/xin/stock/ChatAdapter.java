@@ -110,15 +110,15 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ViewHolder> {
 
         if ("user".equals(msg.getRole())) {
             holder.tvMessage.setText(msg.getContent());
-            holder.tvMessage.setBackgroundResource(R.drawable.chart_tab_bg);
-            holder.tvMessage.setTextColor(Color.BLACK);
+            holder.tvMessage.setBackgroundResource(R.drawable.bg_message_user);
+            holder.tvMessage.setTextColor(Color.WHITE);
             holder.itemView.setPadding(60, 4, 4, 4);
             holder.btnSaveStrategy.setVisibility(View.GONE);
         } else {
             markwon.setMarkdown(holder.tvMessage, msg.getContent());
-            holder.tvMessage.setBackgroundColor(Color.parseColor("#E3F2FD"));
+            holder.tvMessage.setBackgroundResource(R.drawable.bg_message_ai);
             holder.tvMessage.setTextColor(Color.BLACK);
-            holder.tvMessage.setLinkTextColor(Color.parseColor("#1976D2"));
+            holder.tvMessage.setLinkTextColor(Color.parseColor("#1565C0"));
             holder.tvMessage.setMovementMethod(LinkMovementMethod.getInstance());
             holder.itemView.setPadding(4, 4, 60, 4);
 

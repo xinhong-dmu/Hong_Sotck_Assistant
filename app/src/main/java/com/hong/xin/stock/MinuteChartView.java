@@ -23,6 +23,7 @@ public class MinuteChartView extends View {
 
     private List<KlineData> klineData = new ArrayList<>();
     private List<MinuteLineData> minuteData = new ArrayList<>();
+    private List<Double> purchasePrices = new ArrayList<>();
     private int displayDays = 5;
     private boolean useMinute = true;
 
@@ -33,6 +34,8 @@ public class MinuteChartView extends View {
     private final Paint crossLinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint crossBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint ma5Paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint ma20Paint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     private float priceTop, priceBottom;
     private float contentLeft, contentRight;
@@ -42,6 +45,7 @@ public class MinuteChartView extends View {
     private int touchIdx = -1;
 
     private final DecimalFormat df = new DecimalFormat("#0.000");
+    private final DecimalFormat pctDf = new DecimalFormat("+#0.00;-#0.00");
 
     public MinuteChartView(Context context) {
         super(context);
@@ -55,7 +59,7 @@ public class MinuteChartView extends View {
 
     private void init() {
         priceLinePaint.setStyle(Paint.Style.STROKE);
-        priceLinePaint.setStrokeWidth(2f);
+        priceLinePaint.setStrokeWidth(3f);
         priceLinePaint.setColor(Color.parseColor("#2196F3"));
         avgLinePaint.setStyle(Paint.Style.STROKE);
         avgLinePaint.setStrokeWidth(1.5f);
@@ -73,6 +77,12 @@ public class MinuteChartView extends View {
         crossBgPaint.setColor(Color.argb(200, 50, 50, 50));
         fillPaint.setStyle(Paint.Style.FILL);
         fillPaint.setColor(Color.argb(30, 33, 150, 243));
+        ma5Paint.setStyle(Paint.Style.STROKE);
+        ma5Paint.setStrokeWidth(1.5f);
+        ma5Paint.setColor(Color.parseColor("#FFC107"));
+        ma20Paint.setStyle(Paint.Style.STROKE);
+        ma20Paint.setStrokeWidth(1.5f);
+        ma20Paint.setColor(Color.parseColor("#9C27B0"));
     }
 
     private int dataSize() {
@@ -135,6 +145,11 @@ public class MinuteChartView extends View {
         invalidate();
     }
 
+    public void setPurchasePrices(List<Double> prices) {
+        this.purchasePrices = prices != null ? prices : new ArrayList<>();
+        invalidate();
+    }
+
     private String dayOf(String dateStr) {
         if (dateStr.length() >= 10) return dateStr.substring(0, 10).replace("-", "");
         return dateStr;
@@ -144,9 +159,9 @@ public class MinuteChartView extends View {
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
         contentLeft = getPaddingLeft() + 80;
-        contentRight = w - getPaddingRight() - 12;
+        contentRight = w - getPaddingRight() - 65;
         priceTop = getPaddingTop() + 8;
-        priceBottom = h - getPaddingBottom() - 28;
+        priceBottom = h - getPaddingBottom() - 40;
     }
 
     @Override
@@ -160,8 +175,10 @@ public class MinuteChartView extends View {
             calcRange();
             drawPriceGrid(canvas);
             drawPriceLine(canvas);
+            if (!useMinute) drawKlineLegends(canvas);
             drawDaySeps(canvas);
             drawPriceLabels(canvas);
+            drawPurchaseLines(canvas);
             drawDateLabels(canvas);
             drawCrosshair(canvas);
         } catch (Exception e) {
@@ -174,24 +191,108 @@ public class MinuteChartView extends View {
         maxPrice = Double.MIN_VALUE;
         int firstIdx = getFirstIndex();
         if (useMinute) {
+            double preClose = 0;
             for (int i = firstIdx; i < minuteData.size(); i++) {
-                double p = minuteData.get(i).getPrice();
-                if (p > 0) { if (p < minPrice) minPrice = p; if (p > maxPrice) maxPrice = p; }
+                preClose = minuteData.get(i).getPreClose();
+                if (preClose > 0) break;
+            }
+            if (preClose > 0) {
+                double maxPct = 0;
+                for (int i = firstIdx; i < minuteData.size(); i++) {
+                    double p = minuteData.get(i).getPrice();
+                    if (p > 0) {
+                        double pct = Math.abs((p - preClose) / preClose * 100);
+                        if (pct > maxPct) maxPct = pct;
+                    }
+                }
+                double padding = Math.max(maxPct * 0.08, 0.3);
+                maxPct += padding;
+                minPrice = preClose * (1 - maxPct / 100);
+                maxPrice = preClose * (1 + maxPct / 100);
+            } else {
+                for (int i = firstIdx; i < minuteData.size(); i++) {
+                    double p = minuteData.get(i).getPrice();
+                    if (p > 0) { if (p < minPrice) minPrice = p; if (p > maxPrice) maxPrice = p; }
+                }
             }
         } else {
-            for (int i = firstIdx; i < klineData.size(); i++) {
-                KlineData k = klineData.get(i);
-                if (k.getHigh() > maxPrice) maxPrice = k.getHigh();
-                if (k.getLow() > 0 && k.getLow() < minPrice) minPrice = k.getLow();
+            int size = klineData.size();
+            int maPeriod = displayDays <= 5 ? 5 : 20;
+            double preClose = 0;
+            if (firstIdx < klineData.size()) {
+                KlineData first = klineData.get(firstIdx);
+                if (first.getChange() != 0) preClose = first.getClose() - first.getChange();
+                else preClose = first.getClose() / (1 + first.getPctChg() / 100);
+            }
+            if (preClose > 0) {
+                double maxPct = 0;
+                for (int i = firstIdx; i < size; i++) {
+                    KlineData k = klineData.get(i);
+                    if (k.getHigh() > 0) {
+                        double pct = Math.abs((k.getHigh() - preClose) / preClose * 100);
+                        if (pct > maxPct) maxPct = pct;
+                    }
+                    if (k.getLow() > 0) {
+                        double pct = Math.abs((k.getLow() - preClose) / preClose * 100);
+                        if (pct > maxPct) maxPct = pct;
+                    }
+                }
+                double sumMa = 0;
+                for (int i = 0; i < size; i++) {
+                    sumMa += klineData.get(i).getClose();
+                    if (i >= maPeriod) sumMa -= klineData.get(i - maPeriod).getClose();
+                    if (i >= firstIdx && i >= maPeriod - 1) {
+                        double ma = sumMa / maPeriod;
+                        double pct = Math.abs((ma - preClose) / preClose * 100);
+                        if (pct > maxPct) maxPct = pct;
+                    }
+                }
+                double padding = Math.max(maxPct * 0.08, 0.3);
+                maxPct += padding;
+                minPrice = preClose * (1 - maxPct / 100);
+                maxPrice = preClose * (1 + maxPct / 100);
+            } else {
+                for (int i = firstIdx; i < size; i++) {
+                    KlineData k = klineData.get(i);
+                    if (k.getHigh() > maxPrice) maxPrice = k.getHigh();
+                    if (k.getLow() > 0 && k.getLow() < minPrice) minPrice = k.getLow();
+                }
             }
         }
         if (minPrice == Double.MAX_VALUE) { minPrice = 0; maxPrice = 1; }
+        for (double p : purchasePrices) {
+            if (p > 0) {
+                if (p < minPrice) minPrice = p;
+                if (p > maxPrice) maxPrice = p;
+            }
+        }
         double range = maxPrice - minPrice;
         if (range == 0) range = maxPrice * 0.05f;
         double padding = range * 0.08f;
         minPrice -= padding;
         maxPrice += padding;
         if (minPrice < 0) minPrice = 0;
+    }
+
+    private double getPreClosePrice() {
+        if (useMinute && !minuteData.isEmpty()) {
+            int firstIdx = getFirstIndex();
+            if (firstIdx < minuteData.size()) {
+                double pc = minuteData.get(firstIdx).getPreClose();
+                if (pc > 0) return pc;
+                pc = minuteData.get(firstIdx).getPrice();
+                if (pc > 0) return pc;
+            }
+        } else if (!klineData.isEmpty()) {
+            int firstIdx = getFirstIndex();
+            if (firstIdx < klineData.size()) {
+                KlineData first = klineData.get(firstIdx);
+                if (first.getChange() != 0) return first.getClose() - first.getChange();
+                double pc = first.getClose() / (1 + first.getPctChg() / 100);
+                if (pc > 0) return pc;
+            }
+        }
+        return 0;
     }
 
     private float priceToY(double price) {
@@ -208,6 +309,9 @@ public class MinuteChartView extends View {
     private void drawPriceGrid(Canvas canvas) {
         int rows = 5;
         double range = maxPrice - minPrice;
+        double preClose = getPreClosePrice();
+        Paint pctPaint = new Paint(textPaint);
+        pctPaint.setTextSize(22f);
         for (int i = 0; i <= rows; i++) {
             float y = priceTop + (priceBottom - priceTop) * i / (float) rows;
             canvas.drawLine(contentLeft, y, contentRight, y, gridPaint);
@@ -215,6 +319,11 @@ public class MinuteChartView extends View {
             String label = df.format(price);
             float tw = textPaint.measureText(label);
             canvas.drawText(label, contentLeft - tw - 6, y + 8, textPaint);
+            if (preClose > 0) {
+                double pct = (price - preClose) / preClose * 100;
+                String pctLabel = pctDf.format(pct) + "%";
+                canvas.drawText(pctLabel, contentRight + 6, y + 8, pctPaint);
+            }
         }
     }
 
@@ -228,36 +337,39 @@ public class MinuteChartView extends View {
 
     private void drawMinutePriceLine(Canvas canvas) {
         int firstIdx = getFirstIndex();
-        Path linePath = new Path();
-        boolean started = false;
+        if (firstIdx >= minuteData.size()) return;
+
+        Paint segPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        segPaint.setStyle(Paint.Style.STROKE);
+        segPaint.setStrokeWidth(3f);
+        segPaint.setStrokeCap(Paint.Cap.ROUND);
+
+        Float prevX = null, prevY = null;
         for (int i = firstIdx; i < minuteData.size(); i++) {
             float x = idxToX(i - firstIdx);
             double price = minuteData.get(i).getPrice();
-            if (price <= 0) continue;
+            double avgPrice = minuteData.get(i).getAvgPrice();
+            if (price <= 0) { prevX = null; prevY = null; continue; }
             float y = priceToY(price);
-            if (!started) { linePath.moveTo(x, y); started = true; }
-            else { linePath.lineTo(x, y); }
+            if (prevX != null) {
+                int color = Color.parseColor("#2196F3");
+                if (avgPrice > 0) {
+                    color = price >= avgPrice ? Color.parseColor("#43A047") : Color.parseColor("#E53935");
+                }
+                segPaint.setColor(color);
+                canvas.drawLine(prevX, prevY, x, y, segPaint);
+            }
+            prevX = x;
+            prevY = y;
         }
-        if (started) canvas.drawPath(linePath, priceLinePaint);
-
-        Path avgPath = new Path();
-        started = false;
-        for (int i = firstIdx; i < minuteData.size(); i++) {
-            double avg = minuteData.get(i).getAvgPrice();
-            if (avg <= 0) continue;
-            float x = idxToX(i - firstIdx);
-            float y = priceToY(avg);
-            if (!started) { avgPath.moveTo(x, y); started = true; }
-            else { avgPath.lineTo(x, y); }
-        }
-        if (started) canvas.drawPath(avgPath, avgLinePaint);
     }
 
     private void drawKlinePriceLine(Canvas canvas) {
         int firstIdx = getFirstIndex();
+        int displayCount = klineData.size() - firstIdx;
         Path linePath = new Path();
         boolean started = false;
-        for (int i = 0; i < klineData.size() - firstIdx; i++) {
+        for (int i = 0; i < displayCount; i++) {
             float close = (float) klineData.get(firstIdx + i).getClose();
             float x = idxToX(i);
             if (close <= 0) continue;
@@ -266,6 +378,77 @@ public class MinuteChartView extends View {
             else { linePath.lineTo(x, y); }
         }
         if (started) canvas.drawPath(linePath, priceLinePaint);
+
+        if (displayDays <= 5) {
+            drawMaLine(canvas, firstIdx, displayCount, 5, ma5Paint);
+        } else {
+            drawMaLine(canvas, firstIdx, displayCount, 20, ma20Paint);
+        }
+    }
+
+    private void drawMaLine(Canvas canvas, int firstIdx, int displayCount, int period, Paint paint) {
+        if (klineData.size() < period) return;
+        int start = Math.max(0, firstIdx - period + 1);
+        float sum = 0;
+        for (int i = start; i < firstIdx; i++) {
+            sum += (float) klineData.get(i).getClose();
+        }
+        Path path = new Path();
+        boolean started = false;
+        for (int i = 0; i < displayCount; i++) {
+            int idx = firstIdx + i;
+            float close = (float) klineData.get(idx).getClose();
+            sum += close;
+            if (idx >= period) sum -= (float) klineData.get(idx - period).getClose();
+            if (idx < period - 1) continue;
+            float ma = sum / period;
+            float x = idxToX(i);
+            float y = priceToY(ma);
+            if (!started) { path.moveTo(x, y); started = true; }
+            else { path.lineTo(x, y); }
+        }
+        if (started) canvas.drawPath(path, paint);
+    }
+
+    private double calcMA(int idx, int period) {
+        if (idx < period - 1 || klineData.isEmpty()) return 0;
+        double sum = 0;
+        for (int i = idx - period + 1; i <= idx; i++) {
+            sum += klineData.get(i).getClose();
+        }
+        return sum / period;
+    }
+
+    private void drawKlineLegends(Canvas canvas) {
+        Paint lp = new Paint(Paint.ANTI_ALIAS_FLAG);
+        lp.setTextSize(22f);
+        float x = contentLeft + 8;
+        float y = priceTop + 16;
+        float segLen = 18, textGap = 4;
+
+        Paint linePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        linePaint.setStyle(Paint.Style.STROKE);
+        linePaint.setStrokeWidth(2.5f);
+
+        int total = klineData.size();
+
+        linePaint.setColor(Color.parseColor("#2196F3"));
+        canvas.drawLine(x, y, x + segLen, y, linePaint);
+        lp.setColor(Color.parseColor("#2196F3"));
+        canvas.drawText("价格", x + segLen + textGap, y + 8, lp);
+        x += segLen + textGap + lp.measureText("价格") + 6;
+
+        if (displayDays <= 5 && total >= 5) {
+            linePaint.setColor(Color.parseColor("#FFC107"));
+            canvas.drawLine(x, y, x + segLen, y, linePaint);
+            lp.setColor(Color.parseColor("#FFC107"));
+            canvas.drawText("MA5", x + segLen + textGap, y + 8, lp);
+        } else if (displayDays > 5 && total >= 20) {
+            linePaint.setColor(Color.parseColor("#9C27B0"));
+            canvas.drawLine(x, y, x + segLen, y, linePaint);
+            lp.setColor(Color.parseColor("#9C27B0"));
+            canvas.drawText("MA20", x + segLen + textGap, y + 8, lp);
+        }
     }
 
     private void drawDaySeps(Canvas canvas) {
@@ -302,17 +485,37 @@ public class MinuteChartView extends View {
     }
 
     private void drawPriceLabels(Canvas canvas) {
-        int firstIdx = getFirstIndex();
+        double preClose = getPreClosePrice();
+        if (preClose > 0) {
+            float y = priceToY(preClose);
+            Paint centerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            centerPaint.setStyle(Paint.Style.STROKE);
+            centerPaint.setStrokeWidth(1.5f);
+            centerPaint.setColor(Color.parseColor("#666666"));
+            canvas.drawLine(contentLeft, y, contentRight, y, centerPaint);
+        }
+    }
 
-        if (useMinute && !minuteData.isEmpty()) {
-            if (firstIdx < minuteData.size()) {
-                double preClose = minuteData.get(firstIdx).getPreClose();
-                if (preClose <= 0) preClose = minuteData.get(firstIdx).getPrice();
-                if (preClose > 0) {
-                    float y = priceToY(preClose);
-                    canvas.drawLine(contentLeft, y, contentRight, y, gridPaint);
-                }
-            }
+    private void drawPurchaseLines(Canvas canvas) {
+        if (purchasePrices.isEmpty()) return;
+        Paint linePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        linePaint.setStyle(Paint.Style.STROKE);
+        linePaint.setStrokeWidth(1.5f);
+        linePaint.setColor(Color.parseColor("#FF9800"));
+        linePaint.setPathEffect(new DashPathEffect(new float[]{8f, 4f}, 0));
+
+        Paint labelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        labelPaint.setTextSize(22f);
+        labelPaint.setColor(Color.parseColor("#FF9800"));
+
+        for (double price : purchasePrices) {
+            if (price <= 0) continue;
+            float y = priceToY(price);
+            if (y < priceTop || y > priceBottom) continue;
+            canvas.drawLine(contentLeft, y, contentRight, y, linePaint);
+            String label = "买入 " + df.format(price);
+            float tw = labelPaint.measureText(label);
+            canvas.drawText(label, contentRight - tw - 4, y - 6, labelPaint);
         }
     }
 
@@ -332,7 +535,7 @@ public class MinuteChartView extends View {
                 dp.setColor(Color.parseColor("#666666"));
                 dp.setTextSize(20f);
                 float dw = dp.measureText(dateLabel);
-                canvas.drawText(dateLabel, x - dw / 2, priceBottom + 20, dp);
+                canvas.drawText(dateLabel, x - dw / 2, priceBottom + 22, dp);
                 lastLabelX = x;
             }
 
@@ -351,7 +554,7 @@ public class MinuteChartView extends View {
                 dp.setColor(Color.parseColor("#666666"));
                 dp.setTextSize(20f);
                 float dw = dp.measureText(dateLabel);
-                canvas.drawText(dateLabel, x - dw / 2, priceBottom + 20, dp);
+                canvas.drawText(dateLabel, x - dw / 2, priceBottom + 35, dp);
                 lastLabelX = x;
             }
         }
@@ -389,7 +592,7 @@ public class MinuteChartView extends View {
             if (x - lastLabelX < 45) continue;
 
             float dw = tp.measureText(marker);
-            canvas.drawText(marker, x - dw / 2, priceBottom + 20, tp);
+            canvas.drawText(marker, x - dw / 2, priceBottom + 35, tp);
             canvas.drawLine(x, priceTop, x, priceBottom, tickPaint);
             lastLabelX = x;
         }
@@ -408,7 +611,7 @@ public class MinuteChartView extends View {
                 price = d.getPrice();
                 String t = d.getTime();
                 if (t.length() >= 16) t = t.substring(5, 10) + " " + t.substring(11, 16);
-                label = t + " 价:" + df.format(price) + " 均:" + df.format(d.getAvgPrice());
+                label = t + " " + df.format(price);
             }
         } else if (!klineData.isEmpty()) {
             int idx = firstIdx + touchIdx;
@@ -417,7 +620,12 @@ public class MinuteChartView extends View {
                 price = k.getClose();
                 String t = k.getDate();
                 if (t.length() >= 16) t = t.substring(5, 16).replace("-", "/").replace(" ", "  ");
-                label = t + " C:" + df.format(price) + " H:" + df.format(k.getHigh()) + " L:" + df.format(k.getLow());
+                label = t + " " + df.format(price);
+                if (displayDays <= 5 && idx >= 4) {
+                    label += " MA5:" + df.format(calcMA(idx, 5));
+                } else if (displayDays > 5 && idx >= 19) {
+                    label += " MA20:" + df.format(calcMA(idx, 20));
+                }
             }
         }
 

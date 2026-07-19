@@ -6,6 +6,32 @@
     android:orientation="vertical"
     android:background="@color/background">
 
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="8dp"
+        android:layout_marginBottom="4dp"
+        app:cardElevation="1dp"
+        app:cardCornerRadius="10dp"
+        app:cardBackgroundColor="@color/card_bg">
+
+        <ScrollView
+            android:id="@+id/position_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxHeight="180dp"
+            android:scrollbars="vertical"
+            android:fadeScrollbars="false">
+
+            <LinearLayout
+                android:id="@+id/position_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="6dp" />
+        </ScrollView>
+    </com.google.android.material.card.MaterialCardView>
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rv_chat"
         android:layout_width="match_parent"
@@ -37,24 +63,10 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:layout_marginEnd="3dp"
+                android:layout_marginEnd="6dp"
                 android:gravity="center"
                 android:paddingVertical="8dp"
                 android:text="📋 对话模板"
-                android:textColor="@color/text_primary"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                android:background="@drawable/bg_chip" />
-
-            <TextView
-                android:id="@+id/btn_news"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginHorizontal="3dp"
-                android:gravity="center"
-                android:paddingVertical="8dp"
-                android:text="📰 输入新闻"
                 android:textColor="@color/text_primary"
                 android:textSize="13sp"
                 android:textStyle="bold"
@@ -65,7 +77,6 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:layout_marginStart="3dp"
                 android:gravity="center"
                 android:paddingVertical="8dp"
                 android:text="🗑️ 清空对话"

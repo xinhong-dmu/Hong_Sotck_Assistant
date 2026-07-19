@@ -30,6 +30,7 @@ import com.hong.xin.stock.data.PurchaseRecordManager;
 import com.hong.xin.stock.data.StrategyManager;
 import com.hong.xin.stock.data.api.DeepSeekApi;
 import com.hong.xin.stock.data.api.EastMoneyApi;
+import com.hong.xin.stock.data.api.StockNewsApi;
 import com.hong.xin.stock.data.model.ChatMessage;
 import com.hong.xin.stock.data.model.KlineData;
 import com.hong.xin.stock.data.model.MinuteLineData;
@@ -45,15 +46,11 @@ import java.util.Map;
 
 public class DeepSeekChatActivity extends AppCompatActivity {
 
-    private LinearLayout tokenLayout;
-    private EditText etApiKey;
-    private Spinner spinnerModel;
-    private TextView btnSaveToken;
-    private LinearLayout contextBar;
-    private TextView btnTemplates, btnClearHistory, btnModel, btnPromptEdit;
+    private View contextBar;
     private RecyclerView rvChat;
     private EditText etInput;
     private TextView btnSend;
+    private TextView btnNews;
     private ChatAdapter chatAdapter;
 
     private ChatHistoryManager chatHistoryManager;
@@ -72,6 +69,7 @@ public class DeepSeekChatActivity extends AppCompatActivity {
     private boolean dataLoaded = false;
     private boolean loading = false;
     private String customSystemPrompt;
+    private String commonSystemPrompt;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -93,48 +91,24 @@ public class DeepSeekChatActivity extends AppCompatActivity {
     }
 
     private void initViews() {
-        tokenLayout = findViewById(R.id.token_layout);
-        etApiKey = findViewById(R.id.et_api_key);
-        spinnerModel = findViewById(R.id.spinner_model);
-        btnSaveToken = findViewById(R.id.btn_save_token);
         contextBar = findViewById(R.id.context_bar);
-        btnTemplates = findViewById(R.id.btn_templates);
-        btnClearHistory = findViewById(R.id.btn_clear_history);
-        btnModel = findViewById(R.id.btn_model);
-        btnPromptEdit = findViewById(R.id.btn_prompt_edit);
         rvChat = findViewById(R.id.rv_chat);
         etInput = findViewById(R.id.et_input);
         btnSend = findViewById(R.id.btn_send);
 
-        String[] models = {"deepseek-v4-pro", "deepseek-v4-flash", "deepseek-chat", "deepseek-reasoner"};
-        ArrayAdapter<String> modelAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, models);
-        modelAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinnerModel.setAdapter(modelAdapter);
-
-        String currentModel = DeepSeekApi.getModel(this);
-        int selIdx = -1;
-        for (int i = 0; i < models.length; i++) {
-            if (models[i].equals(currentModel)) {
-                selIdx = i;
-                break;
-            }
-        }
-        if (selIdx >= 0) {
-            spinnerModel.setSelection(selIdx);
-        }
+        TextView btnTemplates = findViewById(R.id.btn_templates);
+        btnNews = findViewById(R.id.btn_news);
+        TextView btnClearHistory = findViewById(R.id.btn_clear_history);
 
         chatAdapter = new ChatAdapter();
         chatAdapter.setOnStrategySaveListener(this::showStrategySaveDialog);
         rvChat.setLayoutManager(new LinearLayoutManager(this));
         rvChat.setAdapter(chatAdapter);
 
-        btnSaveToken.setOnClickListener(v -> saveToken());
         btnSend.setOnClickListener(v -> sendMessage());
-
         btnTemplates.setOnClickListener(v -> showTemplateDialog());
+        btnNews.setOnClickListener(v -> fetchAndAppendNews());
         btnClearHistory.setOnClickListener(v -> clearHistory());
-        btnModel.setOnClickListener(v -> showModelDialog());
-        btnPromptEdit.setOnClickListener(v -> showPromptEditDialog());
 
         etInput.setOnEditorActionListener((v, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_SEND) {
@@ -148,53 +122,30 @@ public class DeepSeekChatActivity extends AppCompatActivity {
     private void checkToken() {
         String apiKey = DeepSeekApi.getApiKey(this);
         if (TextUtils.isEmpty(apiKey)) {
-            tokenLayout.setVisibility(View.VISIBLE);
-            contextBar.setVisibility(View.GONE);
-            rvChat.setVisibility(View.GONE);
-            etInput.setVisibility(View.GONE);
-            btnSend.setVisibility(View.GONE);
-        } else {
-            tokenLayout.setVisibility(View.GONE);
-            contextBar.setVisibility(View.VISIBLE);
-            rvChat.setVisibility(View.VISIBLE);
-            etInput.setVisibility(View.VISIBLE);
-            btnSend.setVisibility(View.VISIBLE);
-            etApiKey.setText(apiKey);
-            loadCustomPrompt();
-            syncModelToPrefs();
-            loadContextData();
-        }
-    }
-
-    private void syncModelToPrefs() {
-        String stored = DeepSeekApi.getModel(this);
-        String selected = spinnerModel.getSelectedItem().toString();
-        if (!selected.equals(stored)) {
-            DeepSeekApi.setModel(this, selected);
-        }
-    }
-
-    private void saveToken() {
-        String apiKey = etApiKey.getText().toString().trim();
-        if (TextUtils.isEmpty(apiKey)) {
-            etApiKey.setError("请输入API Key");
+            new AlertDialog.Builder(this)
+                    .setTitle("未配置API Key")
+                    .setMessage("请先在设置中配置DeepSeek API Key后再使用AI分析功能。")
+                    .setPositiveButton("去设置", (d, w) -> {
+                        Intent intent = new Intent(this, MainActivity.class);
+                        intent.putExtra("tab", 1);
+                        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                        startActivity(intent);
+                        finish();
+                    })
+                    .setNegativeButton("返回", (d, w) -> finish())
+                    .setCancelable(false)
+                    .show();
             return;
         }
-        DeepSeekApi.setApiKey(this, apiKey);
-        DeepSeekApi.setModel(this, spinnerModel.getSelectedItem().toString());
-        tokenLayout.setVisibility(View.GONE);
-        contextBar.setVisibility(View.VISIBLE);
-        rvChat.setVisibility(View.VISIBLE);
         etInput.setVisibility(View.VISIBLE);
         btnSend.setVisibility(View.VISIBLE);
+        loadCommonPrompt();
+        loadCustomPrompt();
         loadContextData();
     }
 
     private void showPromptEditDialog() {
-        String currentPrompt = customSystemPrompt;
-        if (TextUtils.isEmpty(currentPrompt)) {
-            currentPrompt = buildGeneratedPrompt();
-        }
+        String currentPrompt = getEffectiveInstruction();
 
         EditText input = new EditText(this);
         input.setText(currentPrompt);
@@ -211,7 +162,8 @@ public class DeepSeekChatActivity extends AppCompatActivity {
         scrollView.addView(input);
 
         new AlertDialog.Builder(this)
-                .setTitle("编辑系统提示词")
+                .setTitle("编辑当前股票提示词（策略指令部分）")
+                .setMessage("仅编辑分析策略指令，行情数据（K线/价格/持仓等）会自动附加。")
                 .setView(scrollView)
                 .setPositiveButton("保存", (dialog, which) -> {
                     String text = input.getText().toString().trim();
@@ -234,18 +186,35 @@ public class DeepSeekChatActivity extends AppCompatActivity {
                 .show();
     }
 
-    private String buildGeneratedPrompt() {
+    private String getDefaultInstruction() {
+        return "你是一个专业的A股数据以及交易策略超级分析师。请根据以下行情数据并结合你的知识进行分析。\n" +
+               "分析可以包括：技术面、基本面、行业趋势、风险提示、市场情绪、主力挖坑策略，当前股票和大盘的联系等。\n" +
+               "优先给出结论再展开具体的止盈止损，加仓减仓，入场清仓，对应的策略价格数值及其表格。\n" +
+               "回答请使用中文，要求：精简扼要，重点突出，避免冗余。";
+    }
+
+    private String getEffectiveInstruction() {
+        if (!TextUtils.isEmpty(customSystemPrompt)) {
+            return customSystemPrompt;
+        }
+        if (!TextUtils.isEmpty(commonSystemPrompt)) {
+            return commonSystemPrompt;
+        }
+        return getDefaultInstruction();
+    }
+
+    private String buildDataSections() {
         StringBuilder sb = new StringBuilder();
-        sb.append("你是一个专业的A股数据以及交易策略超级分析师。请根据以下行情数据并结合你的知识进行分析。\n");
-        sb.append("分析可以包括：技术面、基本面、行业趋势、风险提示、市场情绪、主力挖坑策略，当前股票和大盘的联系等。\n");
-        sb.append("优先给出结论再展开具体的止盈止损，加仓减仓，入场清仓，对应的策略价格数值及其表格。\n");
-        sb.append("回答请使用中文，要求：精简扼要，重点突出，避免冗余。\n\n");
         sb.append(buildQuoteSection());
         sb.append(buildKlineSection());
         sb.append(buildMinuteSection());
         sb.append(buildMarketKlineSection());
         sb.append(buildPurchaseSection());
         return sb.toString();
+    }
+
+    private String buildSystemPrompt() {
+        return getEffectiveInstruction() + "\n\n" + buildDataSections();
     }
 
     private void saveCustomPrompt(String text) {
@@ -256,6 +225,20 @@ public class DeepSeekChatActivity extends AppCompatActivity {
     private void loadCustomPrompt() {
         customSystemPrompt = getSharedPreferences("deepseek_config", MODE_PRIVATE)
                 .getString("custom_prompt_" + stockCode, null);
+    }
+
+    private void loadCommonPrompt() {
+        commonSystemPrompt = getSharedPreferences("deepseek_config", MODE_PRIVATE)
+                .getString("common_prompt", null);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (dataLoaded) {
+            loadCommonPrompt();
+            loadCustomPrompt();
+        }
     }
 
     private void showModelDialog() {
@@ -311,10 +294,37 @@ public class DeepSeekChatActivity extends AppCompatActivity {
         chatAdapter.addMessage(new ChatMessage("assistant", "正在加载行情数据..."));
         rvChat.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
 
-        final int[] pending = {4};
+        final int[] pending = {5};
 
         EastMoneyApi.fetchRealtime(stockCode, q -> {
             quote = q;
+            if (--pending[0] <= 0) onDataReady();
+        });
+
+        EastMoneyApi.fetchExtra(stockCode, q -> {
+            if (quote == null) {
+                quote = q;
+            } else {
+                quote = new RealtimeQuote.Builder(quote)
+                        .pe(q.getPe())
+                        .pb(q.getPb())
+                        .turnoverRate(q.getTurnoverRate())
+                        .volumeRatio(q.getVolumeRatio())
+                        .totalMarketCap(q.getTotalMarketCap())
+                        .circulatingMarketCap(q.getCirculatingMarketCap())
+                        .limitUp(q.getLimitUp())
+                        .limitDown(q.getLimitDown())
+                        .eps(q.getEps())
+                        .dividendYield(q.getDividendYield())
+                        .ma5(q.getMa5())
+                        .ma10(q.getMa10())
+                        .ma20(q.getMa20())
+                        .ma30(q.getMa30())
+                        .ma60(q.getMa60())
+                        .iopv(q.getIopv())
+                        .premiumRate(q.getPremiumRate())
+                        .build();
+            }
             if (--pending[0] <= 0) onDataReady();
         });
 
@@ -371,13 +381,6 @@ public class DeepSeekChatActivity extends AppCompatActivity {
         ChatMessage welcomeMsg = new ChatMessage("assistant", sb.toString());
         chatAdapter.addMessage(welcomeMsg);
         chatHistoryManager.addMessage(stockCode, welcomeMsg);
-    }
-
-    private String buildSystemPrompt() {
-        if (!TextUtils.isEmpty(customSystemPrompt)) {
-            return customSystemPrompt;
-        }
-        return buildGeneratedPrompt();
     }
 
     private String buildQuoteSection() {
@@ -537,18 +540,29 @@ public class DeepSeekChatActivity extends AppCompatActivity {
     }
 
     private String buildPurchaseSection() {
-        PurchaseRecord record = PurchaseRecordManager.getInstance(this).getRecord(stockCode);
-        if (record == null) return "";
+        List<PurchaseRecord> records = PurchaseRecordManager.getInstance(this).getRecords(stockCode);
+        if (records.isEmpty()) return "";
         DecimalFormat df = new DecimalFormat("#0.000");
         StringBuilder sb = new StringBuilder();
         sb.append("=== 用户持仓信息 ===\n");
-        sb.append("买入价格：").append(df.format(record.getPrice())).append("\n");
-        sb.append("买入日期：").append(record.getDate()).append("\n");
+
+        double totalCost = 0;
+        for (PurchaseRecord r : records) totalCost += r.getPrice();
+        double avgCost = totalCost / records.size();
+
+        sb.append("买入均价：").append(df.format(avgCost));
+        sb.append("  买入笔数：").append(records.size()).append("\n");
+        sb.append("买入记录：");
+        for (int i = 0; i < records.size(); i++) {
+            if (i > 0) sb.append("; ");
+            sb.append(df.format(records.get(i).getPrice())).append("@").append(records.get(i).getDate());
+        }
+        sb.append("\n");
+
         if (quote != null && quote.getPrice() > 0) {
-            double cost = record.getPrice();
             double cur = quote.getPrice();
-            double pnl = cur - cost;
-            double pnlPct = (pnl / cost) * 100;
+            double pnl = cur - avgCost;
+            double pnlPct = (pnl / avgCost) * 100;
             sb.append("当前价格：").append(df.format(cur)).append("\n");
             sb.append("浮动盈亏：").append(String.format(Locale.getDefault(), "%.3f", pnl))
                     .append("（").append(String.format(Locale.getDefault(), "%.3f%%", pnlPct)).append("）\n");
@@ -588,33 +602,20 @@ public class DeepSeekChatActivity extends AppCompatActivity {
         listView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
         listView.setScrollbarFadingEnabled(false);
 
-        new AlertDialog.Builder(this)
+        AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("选择Prompt模板")
                 .setView(listView)
                 .setNegativeButton("关闭", null)
                 .show();
 
         listView.setOnItemClickListener((parent, view, which, id) -> {
+            dialog.dismiss();
             if (which < names.size()) {
-                showTemplateActionDialog(names.get(which));
+                appendContext(templateManager.getTemplate(names.get(which)));
             } else {
                 showTemplateEditDialog("", "");
             }
         });
-    }
-
-    private void showTemplateActionDialog(String name) {
-        String content = templateManager.getTemplate(name);
-        new AlertDialog.Builder(this)
-                .setTitle(name)
-                .setMessage(content)
-                .setPositiveButton("使用", (dialog, which) -> appendContext(content))
-                .setNeutralButton("编辑", (dialog, which) -> showTemplateEditDialog(name, content))
-                .setNegativeButton("删除", (dialog, which) -> {
-                    templateManager.deleteTemplate(name);
-                    Toast.makeText(this, "模板已删除", Toast.LENGTH_SHORT).show();
-                })
-                .show();
     }
 
     private void showTemplateEditDialog(String name, String content) {
@@ -666,13 +667,8 @@ public class DeepSeekChatActivity extends AppCompatActivity {
     private void showStrategySaveDialog(ChatMessage message) {
         String aiContent = message.getContent();
         String defaultName = stockName + "策略";
-        String defaultCondition = extractConditionText(aiContent, "");
         String defaultTarget = extractPrice(aiContent, "目标");
         String defaultStopLoss = extractPrice(aiContent, "止损");
-        String defaultPriceAbove = extractPrice(aiContent, "突破");
-        String defaultPriceBelow = extractPrice(aiContent, "跌破");
-        int defaultMaAbove = extractMaCondition(aiContent);
-        double defaultVolumeRatio = extractVolumeRatioCondition(aiContent);
 
         ScrollView scrollView = new ScrollView(this);
         LinearLayout layout = new LinearLayout(this);
@@ -683,37 +679,21 @@ public class DeepSeekChatActivity extends AppCompatActivity {
         TextView labelName = new TextView(this);
         labelName.setText("策略名称");
         labelName.setTextSize(13);
-        labelName.setTextColor(0xFF333333);
+        labelName.setTextColor(getResources().getColor(R.color.text_primary, null));
         layout.addView(labelName);
 
         EditText etName = new EditText(this);
-        etName.setHint("例如: 突破MA20加仓");
+        etName.setHint("例如: 突破阻力位止盈");
         etName.setTextSize(13);
         etName.setPadding(16, 12, 16, 12);
-        etName.setBackgroundResource(R.drawable.chart_tab_bg);
+        etName.setBackgroundResource(R.drawable.bg_input);
         etName.setText(defaultName);
         layout.addView(etName);
 
-        TextView labelCondition = new TextView(this);
-        labelCondition.setText("触发条件描述");
-        labelCondition.setTextSize(13);
-        labelCondition.setTextColor(0xFF333333);
-        labelCondition.setPadding(0, 12, 0, 0);
-        layout.addView(labelCondition);
-
-        EditText etCondition = new EditText(this);
-        etCondition.setHint("例如: 价格上涨突破20日均线");
-        etCondition.setTextSize(13);
-        etCondition.setPadding(16, 12, 16, 12);
-        etCondition.setBackgroundResource(R.drawable.chart_tab_bg);
-        etCondition.setMinLines(2);
-        etCondition.setText(defaultCondition);
-        layout.addView(etCondition);
-
         TextView labelTargetPrice = new TextView(this);
-        labelTargetPrice.setText("目标价格（留空则不设置）");
+        labelTargetPrice.setText("止盈价格（价格高于此值触发）");
         labelTargetPrice.setTextSize(13);
-        labelTargetPrice.setTextColor(0xFF333333);
+        labelTargetPrice.setTextColor(getResources().getColor(R.color.text_primary, null));
         labelTargetPrice.setPadding(0, 12, 0, 0);
         layout.addView(labelTargetPrice);
 
@@ -721,15 +701,15 @@ public class DeepSeekChatActivity extends AppCompatActivity {
         etTargetPrice.setHint("例如: 10.50");
         etTargetPrice.setTextSize(13);
         etTargetPrice.setPadding(16, 12, 16, 12);
-        etTargetPrice.setBackgroundResource(R.drawable.chart_tab_bg);
+        etTargetPrice.setBackgroundResource(R.drawable.bg_input);
         etTargetPrice.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
         etTargetPrice.setText(defaultTarget);
         layout.addView(etTargetPrice);
 
         TextView labelStopLoss = new TextView(this);
-        labelStopLoss.setText("止损价格（留空则不设置）");
+        labelStopLoss.setText("止损价格（价格低于此值触发）");
         labelStopLoss.setTextSize(13);
-        labelStopLoss.setTextColor(0xFF333333);
+        labelStopLoss.setTextColor(getResources().getColor(R.color.text_primary, null));
         labelStopLoss.setPadding(0, 12, 0, 0);
         layout.addView(labelStopLoss);
 
@@ -737,65 +717,10 @@ public class DeepSeekChatActivity extends AppCompatActivity {
         etStopLoss.setHint("例如: 8.00");
         etStopLoss.setTextSize(13);
         etStopLoss.setPadding(16, 12, 16, 12);
-        etStopLoss.setBackgroundResource(R.drawable.chart_tab_bg);
+        etStopLoss.setBackgroundResource(R.drawable.bg_input);
         etStopLoss.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
         etStopLoss.setText(defaultStopLoss);
         layout.addView(etStopLoss);
-
-        TextView labelPriceAbove = new TextView(this);
-        labelPriceAbove.setText("价格突破（高于此价触发）");
-        labelPriceAbove.setTextSize(13);
-        labelPriceAbove.setTextColor(0xFF333333);
-        labelPriceAbove.setPadding(0, 12, 0, 0);
-        layout.addView(labelPriceAbove);
-
-        EditText etPriceAbove = new EditText(this);
-        etPriceAbove.setHint("留空则不设置");
-        etPriceAbove.setTextSize(13);
-        etPriceAbove.setPadding(16, 12, 16, 12);
-        etPriceAbove.setBackgroundResource(R.drawable.chart_tab_bg);
-        etPriceAbove.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        etPriceAbove.setText(defaultPriceAbove);
-        layout.addView(etPriceAbove);
-
-        TextView labelPriceBelow = new TextView(this);
-        labelPriceBelow.setText("价格跌破（低于此价触发）");
-        labelPriceBelow.setTextSize(13);
-        labelPriceBelow.setTextColor(0xFF333333);
-        labelPriceBelow.setPadding(0, 12, 0, 0);
-        layout.addView(labelPriceBelow);
-
-        EditText etPriceBelow = new EditText(this);
-        etPriceBelow.setHint("留空则不设置");
-        etPriceBelow.setTextSize(13);
-        etPriceBelow.setPadding(16, 12, 16, 12);
-        etPriceBelow.setBackgroundResource(R.drawable.chart_tab_bg);
-        etPriceBelow.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        etPriceBelow.setText(defaultPriceBelow);
-        layout.addView(etPriceBelow);
-
-        TextView labelMaAbove = new TextView(this);
-        labelMaAbove.setText("价格站上均线（选择均线，触发当价格>该均线）");
-        labelMaAbove.setTextSize(13);
-        labelMaAbove.setTextColor(0xFF333333);
-        labelMaAbove.setPadding(0, 12, 0, 0);
-        layout.addView(labelMaAbove);
-
-        Spinner spinnerMaAbove = new Spinner(this);
-        String[] maOptions = {"无", "MA5", "MA10", "MA20", "MA30", "MA60"};
-        ArrayAdapter<String> maAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, maOptions);
-        maAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinnerMaAbove.setAdapter(maAdapter);
-        spinnerMaAbove.setPadding(0, 8, 0, 8);
-        if (defaultMaAbove > 0) {
-            for (int i = 0; i < maOptions.length; i++) {
-                if (maOptions[i].equals("MA" + defaultMaAbove)) {
-                    spinnerMaAbove.setSelection(i);
-                    break;
-                }
-            }
-        }
-        layout.addView(spinnerMaAbove);
 
         new AlertDialog.Builder(this)
                 .setTitle("保存策略")
@@ -811,8 +736,6 @@ public class DeepSeekChatActivity extends AppCompatActivity {
                     strategy.setStockCode(stockCode);
                     strategy.setStockName(stockName);
                     strategy.setName(name);
-
-                    strategy.setConditionText(etCondition.getText().toString().trim());
                     strategy.setAiMessage(aiContent);
 
                     try {
@@ -824,25 +747,6 @@ public class DeepSeekChatActivity extends AppCompatActivity {
                         String sl = etStopLoss.getText().toString().trim();
                         if (!sl.isEmpty()) strategy.setStopLossPrice(Double.parseDouble(sl));
                     } catch (NumberFormatException ignored) {}
-
-                    try {
-                        String pa = etPriceAbove.getText().toString().trim();
-                        if (!pa.isEmpty()) strategy.setConditionPriceAbove(Double.parseDouble(pa));
-                    } catch (NumberFormatException ignored) {}
-
-                    try {
-                        String pb = etPriceBelow.getText().toString().trim();
-                        if (!pb.isEmpty()) strategy.setConditionPriceBelow(Double.parseDouble(pb));
-                    } catch (NumberFormatException ignored) {}
-
-                    String maAbove = spinnerMaAbove.getSelectedItem().toString();
-                    if (maAbove.startsWith("MA")) {
-                        strategy.setConditionMaAbove(Integer.parseInt(maAbove.substring(2)));
-                    }
-
-                    if (defaultVolumeRatio > 0) {
-                        strategy.setConditionVolumeRatioMin(defaultVolumeRatio);
-                    }
 
                     strategy.setActive(true);
 
@@ -965,6 +869,55 @@ public class DeepSeekChatActivity extends AppCompatActivity {
         java.util.regex.Matcher m = p.matcher(text);
         if (m.find()) return Double.parseDouble(m.group(1));
         return 0;
+    }
+
+    private void fetchAndAppendNews() {
+        Toast.makeText(this, "正在获取新闻...", Toast.LENGTH_SHORT).show();
+
+        final List<StockNewsApi.NewsItem>[] newsRef = new List[1];
+        final int[] pending = {1};
+
+        StockNewsApi.fetchStockNews(stockCode, stockName, 8, items -> {
+            if (items != null) {
+                newsRef[0] = items;
+            }
+            if (--pending[0] <= 0) showNewsDialog(newsRef[0]);
+        });
+    }
+
+    private void showNewsDialog(List<StockNewsApi.NewsItem> news) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("===== ").append(stockName).append(" 最新新闻 =====\n\n");
+
+        if (news != null && !news.isEmpty()) {
+            for (StockNewsApi.NewsItem item : news) {
+                String date = item.getDate();
+                if (!TextUtils.isEmpty(date) && date.length() > 10) date = date.substring(0, 10);
+                sb.append("• [").append(date).append("] ").append(item.getTitle()).append("\n");
+            }
+        } else {
+            sb.append("暂无相关新闻数据。");
+        }
+
+        String newsText = sb.toString();
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
+        scrollView.setScrollbarFadingEnabled(false);
+
+        TextView tv = new TextView(this);
+        tv.setText(newsText);
+        tv.setTextSize(13);
+        tv.setPadding(24, 16, 24, 16);
+        tv.setTextIsSelectable(true);
+        scrollView.addView(tv);
+
+        new AlertDialog.Builder(this)
+                .setTitle("最新相关新闻")
+                .setView(scrollView)
+                .setPositiveButton("确定", (d, w) -> appendContext(newsText))
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     private void sendMessage() {

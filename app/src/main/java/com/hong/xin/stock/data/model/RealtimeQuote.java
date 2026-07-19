@@ -208,6 +208,40 @@ public class RealtimeQuote {
         private double iopv = 0.0;
         private double premiumRate = 0.0;
 
+        public Builder() {}
+        
+        public Builder(RealtimeQuote existing) {
+            this.name = existing.name;
+            this.code = existing.code;
+            this.price = existing.price;
+            this.high = existing.high;
+            this.low = existing.low;
+            this.open = existing.open;
+            this.volume = existing.volume;
+            this.amount = existing.amount;
+            this.pctChg = existing.pctChg;
+            this.change = existing.change;
+            this.preClose = existing.preClose;
+            this.pe = existing.pe;
+            this.peTTM = existing.peTTM;
+            this.pb = existing.pb;
+            this.turnoverRate = existing.turnoverRate;
+            this.volumeRatio = existing.volumeRatio;
+            this.totalMarketCap = existing.totalMarketCap;
+            this.circulatingMarketCap = existing.circulatingMarketCap;
+            this.limitUp = existing.limitUp;
+            this.limitDown = existing.limitDown;
+            this.eps = existing.eps;
+            this.dividendYield = existing.dividendYield;
+            this.ma5 = existing.ma5;
+            this.ma10 = existing.ma10;
+            this.ma20 = existing.ma20;
+            this.ma30 = existing.ma30;
+            this.ma60 = existing.ma60;
+            this.iopv = existing.iopv;
+            this.premiumRate = existing.premiumRate;
+        }
+
         public Builder name(String name) { this.name = name; return this; }
         public Builder code(String code) { this.code = code; return this; }
         public Builder price(double price) { this.price = price; return this; }
