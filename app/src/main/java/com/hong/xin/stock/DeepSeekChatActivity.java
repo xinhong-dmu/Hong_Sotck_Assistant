@@ -2,6 +2,7 @@ package com.hong.xin.stock;
 
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
@@ -162,7 +163,7 @@ public class DeepSeekChatActivity extends AppCompatActivity {
         scrollView.addView(input);
 
         new AlertDialog.Builder(this)
-                .setTitle("编辑当前股票提示词（策略指令部分）")
+                .setTitle("编辑当前股票提示词")
                 .setMessage("仅编辑分析策略指令，行情数据（K线/价格/持仓等）会自动附加。")
                 .setView(scrollView)
                 .setPositiveButton("保存", (dialog, which) -> {
@@ -186,11 +187,12 @@ public class DeepSeekChatActivity extends AppCompatActivity {
                 .show();
     }
 
-    private String getDefaultInstruction() {
-        return "你是一个专业的A股数据以及交易策略超级分析师。请根据以下行情数据并结合你的知识进行分析。\n" +
-               "分析可以包括：技术面、基本面、行业趋势、风险提示、市场情绪、主力挖坑策略，当前股票和大盘的联系等。\n" +
-               "优先给出结论再展开具体的止盈止损，加仓减仓，入场清仓，对应的策略价格数值及其表格。\n" +
-               "回答请使用中文，要求：精简扼要，重点突出，避免冗余。";
+    public static String getDefaultInstruction() {
+        return "你是一个专业的A股数据以及交易策略超级分析师。请根据提供的数据信息并结合你的知识进行分析。\n" +
+               "分析可以包括：技术面、基本面、行业趋势、风险提示、市场情绪、主力挖坑，当前股票和大盘的联系等。\n" +
+               "有持仓数据的，给出加减仓，止盈止损及其对应价格的操作建议。\n" +
+               "没持仓数据的，给出入场的价格及其操作建议，\n" +
+               "回答请使用中文，markdown格式，内容要求：精简扼要，重点突出，避免冗余，对应的操作/价格用表格表述。";
     }
 
     private String getEffectiveInstruction() {
@@ -208,6 +210,7 @@ public class DeepSeekChatActivity extends AppCompatActivity {
         sb.append(buildQuoteSection());
         sb.append(buildKlineSection());
         sb.append(buildMinuteSection());
+        sb.append(buildVolumeSection());
         sb.append(buildMarketKlineSection());
         sb.append(buildPurchaseSection());
         return sb.toString();
@@ -228,8 +231,24 @@ public class DeepSeekChatActivity extends AppCompatActivity {
     }
 
     private void loadCommonPrompt() {
-        commonSystemPrompt = getSharedPreferences("deepseek_config", MODE_PRIVATE)
-                .getString("common_prompt", null);
+        SharedPreferences prefs = getSharedPreferences("deepseek_config", MODE_PRIVATE);
+        int lastVersion = prefs.getInt("common_prompt_version", -1);
+        int currentVersion = getCurrentVersionCode();
+        if (lastVersion != currentVersion) {
+            prefs.edit()
+                    .putString("common_prompt", getDefaultInstruction())
+                    .putInt("common_prompt_version", currentVersion)
+                    .apply();
+        }
+        commonSystemPrompt = prefs.getString("common_prompt", null);
+    }
+
+    private int getCurrentVersionCode() {
+        try {
+            return getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
+        } catch (Exception e) {
+            return 0;
+        }
     }
 
     @Override
@@ -514,6 +533,104 @@ public class DeepSeekChatActivity extends AppCompatActivity {
         return sb.toString();
     }
 
+    private String buildVolumeSection() {
+        DecimalFormat df = new DecimalFormat("#0.00");
+        DecimalFormat dfInt = new DecimalFormat("#0");
+        StringBuilder sb = new StringBuilder();
+
+        // ===== 今日成交量（实时） =====
+        sb.append("=== 成交量分析 ===\n");
+        if (quote != null) {
+            String todayVol = formatVolume(quote.getVolume());
+            String todayAmt = formatAmount(quote.getAmount());
+            sb.append("今日实时成交量：").append(todayVol);
+            sb.append("  成交额：").append(todayAmt).append("\n");
+        }
+
+        // ===== 最近交易日成交量（日K线） =====
+        if (dailyKlines != null && !dailyKlines.isEmpty()) {
+            int n = Math.min(dailyKlines.size(), 120);
+            int start = dailyKlines.size() - n;
+
+            double totalVol = 0;
+            double maxVol = 0;
+            double minVol = Double.MAX_VALUE;
+            int maxIdx = -1, minIdx = -1;
+            for (int i = start; i < dailyKlines.size(); i++) {
+                KlineData k = dailyKlines.get(i);
+                double v = k.getVolume();
+                totalVol += v;
+                if (v > maxVol) { maxVol = v; maxIdx = i; }
+                if (v < minVol) { minVol = v; minIdx = i; }
+            }
+            double avgVol = totalVol / n;
+            sb.append("120日均成交量：").append(df.format(avgVol)).append("手\n");
+            sb.append("最大成交量：").append(df.format(maxVol)).append("手（")
+                    .append(dailyKlines.get(maxIdx).getDate()).append("）\n");
+            sb.append("最小成交量：").append(df.format(minVol)).append("手（")
+                    .append(dailyKlines.get(minIdx).getDate()).append("）\n");
+
+            int volUp = 0, volDown = 0;
+            for (int i = start; i < dailyKlines.size(); i++) {
+                KlineData k = dailyKlines.get(i);
+                if (k.getVolume() > avgVol * 1.5) {
+                    if (k.getPctChg() > 0) volUp++;
+                    else volDown++;
+                }
+            }
+            sb.append("放量上涨天数：").append(volUp).append("  放量下跌天数：").append(volDown).append("\n");
+
+            int recentDays = Math.min(5, n);
+            sb.append("\n最近").append(recentDays).append("个交易日成交量：\n");
+            for (int i = dailyKlines.size() - recentDays; i < dailyKlines.size(); i++) {
+                KlineData k = dailyKlines.get(i);
+                double ratio = avgVol > 0 ? k.getVolume() / avgVol * 100 : 0;
+                sb.append(k.getDate()).append("  ").append(df.format(k.getVolume())).append("手")
+                        .append("（均值").append(dfInt.format(ratio)).append("%")
+                        .append(" 涨跌").append(String.format(Locale.getDefault(), "%+.2f%%", k.getPctChg()))
+                        .append("）\n");
+            }
+            sb.append("\n");
+        }
+
+        // ===== 20日分时成交量 =====
+        if (minuteData != null && !minuteData.isEmpty()) {
+            sb.append("=== 20日分时成交量 ===\n");
+
+            java.util.Map<String, Double> dayVolMap = new java.util.LinkedHashMap<>();
+            java.util.Map<String, Double> dayAmtMap = new java.util.LinkedHashMap<>();
+            for (MinuteLineData d : minuteData) {
+                String date = d.getTime().length() >= 10 ? d.getTime().substring(0, 10) : d.getTime();
+                dayVolMap.merge(date, d.getVolume(), Double::sum);
+                dayAmtMap.merge(date, d.getAmount(), Double::sum);
+            }
+
+            int dayCount = 0;
+            double dayTotalVol = 0;
+            for (double v : dayVolMap.values()) {
+                dayTotalVol += v;
+                dayCount++;
+            }
+            double avgDayVol = dayCount > 0 ? dayTotalVol / dayCount : 0;
+            sb.append("统计天数：").append(dayCount).append("日\n");
+            sb.append("日均分时成交量：").append(df.format(avgDayVol)).append("手\n");
+            sb.append("20日总成交量：").append(df.format(dayTotalVol)).append("手\n\n");
+
+            sb.append("每日分时成交量明细（从近到远）：\n");
+            java.util.List<String> dates = new java.util.ArrayList<>(dayVolMap.keySet());
+            java.util.Collections.reverse(dates);
+            for (String date : dates) {
+                double dv = dayVolMap.get(date);
+                double ratio = avgDayVol > 0 ? dv / avgDayVol * 100 : 0;
+                sb.append(date).append("  ").append(df.format(dv)).append("手")
+                        .append("（均值").append(dfInt.format(ratio)).append("%）\n");
+            }
+            sb.append("\n");
+        }
+
+        return sb.toString();
+    }
+
     private String buildMarketKlineSection() {
         if (marketKlines == null || marketKlines.isEmpty()) return "";
 
@@ -653,12 +770,19 @@ public class DeepSeekChatActivity extends AppCompatActivity {
     private void clearHistory() {
         new AlertDialog.Builder(this)
                 .setTitle("清空对话")
-                .setMessage("确定要清空当前股票的所有对话记录吗？")
+                .setMessage("确定要清空当前股票的所有对话记录吗？清空后将重新加载最新数据。")
                 .setPositiveButton("确定", (dialog, which) -> {
                     chatHistoryManager.clearHistory(stockCode);
                     chatAdapter.getMessages().clear();
                     chatAdapter.notifyDataSetChanged();
-                    showWelcomeMessage();
+                    quote = null;
+                    dailyKlines = null;
+                    minuteData = null;
+                    marketKlines = null;
+                    dataLoaded = false;
+                    loading = false;
+                    chatAdapter.addMessage(new ChatMessage("assistant", "正在重新加载最新行情数据..."));
+                    loadContextData();
                 })
                 .setNegativeButton("取消", null)
                 .show();

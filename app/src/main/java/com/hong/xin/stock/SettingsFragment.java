@@ -2,6 +2,7 @@ package com.hong.xin.stock;
 
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
@@ -200,13 +201,9 @@ public class SettingsFragment extends Fragment {
     }
 
     private void showCommonPromptDialog() {
-        String current = requireContext().getSharedPreferences("deepseek_config", 0)
-                .getString("common_prompt", null);
-
-        String defaultInstruction = "你是一个专业的A股数据以及交易策略超级分析师。请根据以下行情数据并结合你的知识进行分析。\n" +
-                "分析可以包括：技术面、基本面、行业趋势、风险提示、市场情绪、主力挖坑策略，当前股票和大盘的联系等。\n" +
-                "优先给出结论再展开具体的止盈止损，加仓减仓，入场清仓，对应的策略价格数值及其表格。\n" +
-                "回答请使用中文，要求：精简扼要，重点突出，避免冗余。";
+        SharedPreferences prefs = requireContext().getSharedPreferences("deepseek_config", 0);
+        String current = prefs.getString("common_prompt", null);
+        String defaultInstruction = DeepSeekChatActivity.getDefaultInstruction();
 
         EditText input = new EditText(requireContext());
         input.setText(!TextUtils.isEmpty(current) ? current : defaultInstruction);
@@ -222,8 +219,8 @@ public class SettingsFragment extends Fragment {
         scrollView.addView(input);
 
         new AlertDialog.Builder(requireContext())
-                .setTitle("编辑通用Prompt（策略指令部分）")
-                .setMessage("仅编辑分析策略指令，行情数据（K线/价格/持仓等）会自动附加。")
+                .setTitle("编辑通用Prompt")
+                .setMessage("仅需编辑分析策略指令，行情数据（K线/价格/持仓等）会自动附加。")
                 .setView(scrollView)
                 .setPositiveButton("保存", (d, w) -> {
                     String text = input.getText().toString().trim();
@@ -235,7 +232,7 @@ public class SettingsFragment extends Fragment {
                 })
                 .setNeutralButton("恢复默认", (d, w) -> {
                     requireContext().getSharedPreferences("deepseek_config", 0)
-                            .edit().putString("common_prompt", "").apply();
+                            .edit().putString("common_prompt", defaultInstruction).apply();
                     Toast.makeText(requireContext(), "已恢复默认策略指令", Toast.LENGTH_SHORT).show();
                 })
                 .setNegativeButton("取消", null)

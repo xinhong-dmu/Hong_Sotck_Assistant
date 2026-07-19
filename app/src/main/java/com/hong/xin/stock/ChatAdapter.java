@@ -1,16 +1,12 @@
 package com.hong.xin.stock;
 
 import android.graphics.Color;
-import android.text.SpannableString;
-import android.text.Spanned;
-import android.text.style.ForegroundColorSpan;
-import android.text.style.StyleSpan;
 import android.text.method.LinkMovementMethod;
-import android.text.TextPaint;
-import android.text.style.ClickableSpan;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -109,18 +105,18 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ViewHolder> {
         holder.tvMessage.setMovementMethod(null);
 
         if ("user".equals(msg.getRole())) {
+            holder.messageWrapper.setGravity(Gravity.END);
             holder.tvMessage.setText(msg.getContent());
             holder.tvMessage.setBackgroundResource(R.drawable.bg_message_user);
             holder.tvMessage.setTextColor(Color.WHITE);
-            holder.itemView.setPadding(60, 4, 4, 4);
             holder.btnSaveStrategy.setVisibility(View.GONE);
         } else {
+            holder.messageWrapper.setGravity(Gravity.START);
             markwon.setMarkdown(holder.tvMessage, msg.getContent());
             holder.tvMessage.setBackgroundResource(R.drawable.bg_message_ai);
             holder.tvMessage.setTextColor(Color.BLACK);
             holder.tvMessage.setLinkTextColor(Color.parseColor("#1565C0"));
             holder.tvMessage.setMovementMethod(LinkMovementMethod.getInstance());
-            holder.itemView.setPadding(4, 4, 60, 4);
 
             if (containsSignalKeyword(msg.getContent())) {
                 holder.btnSaveStrategy.setVisibility(View.VISIBLE);
@@ -141,11 +137,13 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ViewHolder> {
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {
+        LinearLayout messageWrapper;
         TextView tvMessage;
         TextView btnSaveStrategy;
 
         ViewHolder(View itemView) {
             super(itemView);
+            messageWrapper = itemView.findViewById(R.id.message_wrapper);
             tvMessage = itemView.findViewById(R.id.tv_message);
             btnSaveStrategy = itemView.findViewById(R.id.btn_save_strategy);
         }

@@ -2,6 +2,7 @@ package com.hong.xin.stock;
 
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
@@ -614,8 +615,25 @@ public class PositionAnalysisFragment extends Fragment {
     }
 
     private void loadCommonPrompt() {
-        commonSystemPrompt = requireContext().getSharedPreferences(PREF_NAME, 0)
-                .getString("common_prompt", null);
+        SharedPreferences prefs = requireContext().getSharedPreferences(PREF_NAME, 0);
+        int lastVersion = prefs.getInt("common_prompt_version", -1);
+        int currentVersion = getCurrentVersionCode();
+        if (lastVersion != currentVersion) {
+            prefs.edit()
+                    .putString("common_prompt", getDefaultInstruction())
+                    .putInt("common_prompt_version", currentVersion)
+                    .apply();
+        }
+        commonSystemPrompt = prefs.getString("common_prompt", null);
+    }
+
+    private int getCurrentVersionCode() {
+        try {
+            return requireContext().getPackageManager()
+                    .getPackageInfo(requireContext().getPackageName(), 0).versionCode;
+        } catch (Exception e) {
+            return 0;
+        }
     }
 
     @Override
